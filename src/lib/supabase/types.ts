@@ -1,0 +1,105 @@
+export type Company = {
+  id: string
+  name: string
+  domain: string
+  contact_name: string | null
+  contact_email: string | null
+  created_at: string
+}
+
+export type ReportStatus = 'draft' | 'sent' | 'viewed' | 'replied' | 'expired'
+
+export type Report = {
+  id: string
+  company_id: string
+  code: string
+  status: ReportStatus
+  score: number | null
+  score_calculation: string | null
+  summary: string | null
+  tier: string | null
+  audit_date: string | null
+  pages_checked: string[]
+  skipped_checks: string[]
+  positives: string[]
+  expires_at: string | null
+  view_count: number
+  created_at: string
+}
+
+export type FindingSeverity = 'critical' | 'moderate' | 'minor'
+export type FindingConfidence = 'high' | 'medium' | 'low'
+
+export type Finding = {
+  id: string
+  report_id: string
+  finding_id: string
+  severity: FindingSeverity
+  confidence: FindingConfidence | null
+  category: string | null
+  title: string
+  description: string | null
+  business_impact: string | null
+  page: string | null
+  steps_to_reproduce: string[]
+  evidence: {
+    screenshot?: string
+    screenshot_url?: string
+    eval_data?: string
+    snapshot_text?: string
+  }
+  created_at: string
+}
+
+export type ActivityAction = 'scanned' | 'sent' | 'viewed' | 'replied' | 'converted' | 'expired'
+
+export type ActivityLog = {
+  id: string
+  report_id: string
+  action: ActivityAction
+  details: string | null
+  created_at: string
+}
+
+// Joined types for queries
+export type ReportWithCompany = Report & {
+  companies: Company
+}
+
+export type ReportWithFindings = Report & {
+  companies: Company
+  findings: Finding[]
+}
+
+export type ActivityWithReport = ActivityLog & {
+  reports: Report & {
+    companies: Company
+  }
+}
+
+export type Database = {
+  public: {
+    Tables: {
+      companies: {
+        Row: Company
+        Insert: Omit<Company, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<Company, 'id'>>
+      }
+      reports: {
+        Row: Report
+        Insert: Omit<Report, 'id' | 'created_at' | 'view_count'> & { id?: string; created_at?: string; view_count?: number }
+        Update: Partial<Omit<Report, 'id'>>
+      }
+      findings: {
+        Row: Finding
+        Insert: Omit<Finding, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<Finding, 'id'>>
+      }
+      activity_log: {
+        Row: ActivityLog
+        Insert: Omit<ActivityLog, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<ActivityLog, 'id'>>
+      }
+    }
+  }
+}

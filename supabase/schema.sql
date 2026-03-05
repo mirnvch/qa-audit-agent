@@ -1,0 +1,89 @@
+-- QA Camp Admin Panel — Database Schema
+-- Run this in Supabase SQL Editor
+
+-- Companies (scanned websites)
+create table if not exists companies (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  domain text unique not null,
+  contact_name text,
+  contact_email text,
+  created_at timestamptz default now()
+);
+
+-- Reports
+create table if not exists reports (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid references companies(id) on delete cascade not null,
+  code text unique not null,
+  status text not null default 'draft' check (status in ('draft','sent','viewed','replied','expired')),
+  score int check (score >= 0 and score <= 100),
+  score_calculation text,
+  summary text,
+  tier text check (tier in ('small','medium','large','enterprise')),
+  audit_date date,
+  pages_checked text[] default '{}',
+  skipped_checks text[] default '{}',
+  positives text[] default '{}',
+  expires_at timestamptz,
+  view_count int default 0,
+  created_at timestamptz default now()
+);
+
+-- Findings
+create table if not exists findings (
+  id uuid primary key default gen_random_uuid(),
+  report_id uuid references reports(id) on delete cascade not null,
+  finding_id text not null,
+  severity text not null check (severity in ('critical','moderate','minor')),
+  confidence text check (confidence in ('high','medium','low')),
+  category text,
+  title text not null,
+  description text,
+  business_impact text,
+  page text,
+  steps_to_reproduce text[] default '{}',
+  evidence jsonb default '{}',
+  created_at timestamptz default now()
+);
+
+-- Activity Log
+create table if not exists activity_log (
+  id uuid primary key default gen_random_uuid(),
+  report_id uuid references reports(id) on delete cascade not null,
+  action text not null check (action in ('scanned','sent','viewed','replied','converted','expired')),
+  details text,
+  created_at timestamptz default now()
+);
+
+-- Indexes
+create index if not exists idx_reports_code on reports(code);
+create index if not exists idx_reports_status on reports(status);
+create index if not exists idx_reports_company on reports(company_id);
+create index if not exists idx_findings_report on findings(report_id);
+create index if not exists idx_findings_severity on findings(severity);
+create index if not exists idx_activity_report on activity_log(report_id);
+create index if not exists idx_activity_created on activity_log(created_at desc);
+
+-- Enable RLS
+alter table companies enable row level security;
+alter table reports enable row level security;
+alter table findings enable row level security;
+alter table activity_log enable row level security;
+
+-- Admin (authenticated) full access
+create policy "Admin full access companies" on companies for all using (auth.role() = 'authenticated');
+create policy "Admin full access reports" on reports for all using (auth.role() = 'authenticated');
+create policy "Admin full access findings" on findings for all using (auth.role() = 'authenticated');
+create policy "Admin full access activity" on activity_log for all using (auth.role() = 'authenticated');
+
+-- Public read for client portal (anon can read reports/findings by code)
+create policy "Public read reports" on reports for select to anon using (true);
+create policy "Public read findings" on findings for select to anon using (true);
+create policy "Public read companies" on companies for select to anon using (true);
+
+-- Public can update view_count (for tracking)
+create policy "Public update view count" on reports for update to anon using (true) with check (true);
+
+-- Public can insert activity (for view tracking)
+create policy "Public insert activity" on activity_log for insert to anon with check (true);
