@@ -6,228 +6,13 @@ import { ScoreCircle } from '@/components/score-circle'
 import { ReportStatusBadge } from '@/components/report-status-badge'
 import { FindingCard } from '@/components/finding-card'
 import { ReportDetailActions } from '@/components/report-detail-actions'
-import type { ReportStatus, Finding } from '@/lib/supabase/types'
+import type { ReportStatus, Finding, ReportWithFindings } from '@/lib/supabase/types'
 
 type Props = {
   params: Promise<{ id: string }>
 }
 
-type MockFinding = Omit<Finding, 'id' | 'report_id' | 'created_at'>
-
-const mockFindings: MockFinding[] = [
-  {
-    finding_id: 'CR-001',
-    severity: 'critical',
-    confidence: 'high',
-    category: 'functionality',
-    title: 'Contact page email link leads to wrong address (template placeholder)',
-    description:
-      'In the contact page carousel, the email link displays info@company.com but the actual mailto: href points to sanfrancisco@property.com — a template placeholder that was never replaced.',
-    business_impact:
-      'Every customer who clicks the email link sends their inquiry to a non-existent address. These leads are permanently lost.',
-    page: '/en/contact',
-    steps_to_reproduce: [
-      'Open the contact page',
-      'Scroll to the carousel section',
-      'Click the email link displayed as info@company.com',
-      'Email client opens with wrong recipient: sanfrancisco@property.com',
-    ],
-    evidence: {
-      eval_data: "link text: 'info@company.com', href: 'mailto:sanfrancisco@property.com'",
-    },
-  },
-  {
-    finding_id: 'CR-002',
-    severity: 'critical',
-    confidence: 'high',
-    category: 'seo',
-    title: 'Homepage missing meta description',
-    description:
-      'The homepage has no meta description tag. Search engines will generate their own snippet, which is typically less effective for conversions.',
-    business_impact:
-      'Lower click-through rates from search results, reducing organic traffic by an estimated 15-30%.',
-    page: '/',
-    steps_to_reproduce: [
-      'View page source of the homepage',
-      'Search for <meta name="description"',
-      'Tag is absent',
-    ],
-    evidence: {
-      eval_data: 'document.querySelector(\'meta[name="description"]\') → null',
-    },
-  },
-  {
-    finding_id: 'CR-003',
-    severity: 'critical',
-    confidence: 'high',
-    category: 'functionality',
-    title: 'Contact form submits but shows no confirmation message',
-    description:
-      'After submitting the contact form, the page reloads silently with no success or error feedback. Users cannot tell if their message was sent.',
-    business_impact:
-      'Users who submit the form don\'t know if it worked. Most will leave thinking it failed, and won\'t follow up.',
-    page: '/en/contact',
-    steps_to_reproduce: [
-      'Fill in the contact form with valid data',
-      'Click Submit',
-      'Page reloads — no confirmation shown',
-    ],
-    evidence: {
-      eval_data: 'No .success, .confirmation, or [role="alert"] element found after submission',
-    },
-  },
-  {
-    finding_id: 'MO-001',
-    severity: 'moderate',
-    confidence: 'high',
-    category: 'performance',
-    title: 'Hero images not optimized — LCP above 4s on mobile',
-    description:
-      'The hero section loads 3 uncompressed JPEGs totaling 4.2 MB. On a typical mobile connection this causes the Largest Contentful Paint to exceed 4 seconds.',
-    business_impact:
-      'Google uses LCP as a Core Web Vital ranking signal. Poor LCP hurts SEO and increases bounce rate.',
-    page: '/',
-    steps_to_reproduce: [
-      'Open Chrome DevTools → Lighthouse',
-      'Run mobile audit',
-      'Check LCP score and image sizes',
-    ],
-    evidence: {
-      eval_data: 'hero-bg.jpg: 1.8 MB, slide-1.jpg: 1.4 MB, slide-2.jpg: 1.0 MB',
-    },
-  },
-  {
-    finding_id: 'MO-002',
-    severity: 'moderate',
-    confidence: 'medium',
-    category: 'accessibility',
-    title: 'All images lack alt attributes',
-    description:
-      'Property listing images and team photos have empty or missing alt attributes, making the site inaccessible to screen reader users.',
-    business_impact:
-      'WCAG 2.1 Level A violation. May expose the business to accessibility lawsuits in jurisdictions with ADA enforcement.',
-    page: '/en/properties',
-    steps_to_reproduce: [
-      'Run axe accessibility audit on /en/properties',
-      'Filter for "Images must have alternate text" rule',
-    ],
-    evidence: {
-      eval_data: '14 img elements with alt="" or missing alt attribute',
-    },
-  },
-  {
-    finding_id: 'MO-003',
-    severity: 'moderate',
-    confidence: 'high',
-    category: 'seo',
-    title: 'Blog posts missing structured data (Article schema)',
-    description:
-      'Blog articles have no JSON-LD Article schema. Google cannot display rich snippets (author, date, breadcrumbs) in search results.',
-    business_impact:
-      'Missing rich snippets reduce click-through rates from search by approximately 20%.',
-    page: '/en/blog',
-    steps_to_reproduce: [
-      'Open any blog post',
-      'Check page source for <script type="application/ld+json">',
-      'No Article schema present',
-    ],
-    evidence: {
-      eval_data: 'document.querySelectorAll(\'script[type="application/ld+json"]\').length → 0',
-    },
-  },
-  {
-    finding_id: 'MO-004',
-    severity: 'moderate',
-    confidence: 'medium',
-    category: 'functionality',
-    title: 'Mobile navigation menu does not close on outside click',
-    description:
-      'On mobile, opening the hamburger menu and tapping outside it does not close the menu. Users must tap the hamburger icon again.',
-    business_impact:
-      'Poor mobile UX. With 60%+ of users on mobile, this friction reduces engagement.',
-    page: '/',
-    steps_to_reproduce: [
-      'Open site on mobile (or resize to <768px)',
-      'Tap hamburger menu to open it',
-      'Tap anywhere outside the menu',
-      'Menu remains open',
-    ],
-    evidence: {
-      eval_data: 'No document click or pointer event listener detected on nav overlay',
-    },
-  },
-  {
-    finding_id: 'MI-001',
-    severity: 'minor',
-    confidence: 'low',
-    category: 'ui',
-    title: 'Footer copyright year is outdated (2023)',
-    description: 'Footer shows "© 2023" instead of the current year.',
-    business_impact: 'Minor trust signal — looks unmaintained.',
-    page: '/en',
-    steps_to_reproduce: ['Scroll to footer', 'Check copyright year'],
-    evidence: { eval_data: 'footer text: "© 2023 Company Name. All rights reserved."' },
-  },
-]
-
-type MockReport = {
-  id: string
-  code: string
-  status: ReportStatus
-  score: number
-  score_calculation: string
-  summary: string
-  tier: string
-  audit_date: string
-  pages_checked: string[]
-  skipped_checks: string[]
-  positives: string[]
-  view_count: number
-  created_at: string
-  companies: {
-    id: string
-    name: string
-    domain: string
-    contact_name: string | null
-    contact_email: string | null
-    created_at: string
-  }
-  findings: MockFinding[]
-}
-
-const mockReport: MockReport = {
-  id: '3',
-  code: 'RPT-9K2LP5',
-  status: 'replied',
-  score: 24,
-  score_calculation: '100 - (3×15) - (4×7) - (1×3) = 24',
-  summary:
-    'The website has several critical issues that are actively hurting lead generation, including a broken email link and missing form confirmation. SEO and performance need attention.',
-  tier: 'small',
-  audit_date: '2026-03-04',
-  pages_checked: ['/en', '/en/about', '/en/contact', '/en/properties', '/en/blog'],
-  skipped_checks: ['payment_flow', 'user_account_flow'],
-  positives: [
-    'SSL certificate is valid and HTTPS is enforced site-wide',
-    'Mobile layout is responsive and adapts correctly to all screen sizes',
-    'Page load time on desktop is acceptable (under 2s)',
-    'Social media links in footer are correct and working',
-    'Privacy policy and terms pages are present',
-  ],
-  view_count: 7,
-  created_at: '2026-03-04T10:00:00Z',
-  companies: {
-    id: 'c3',
-    name: 'Evergreen Chiropractic',
-    domain: 'evergreenchiro.com',
-    contact_name: 'Dr. Amy Chen',
-    contact_email: 'amy@evergreenchiro.com',
-    created_at: '2026-01-01T00:00:00Z',
-  },
-  findings: mockFindings,
-}
-
-async function getReport(id: string) {
+async function getReport(id: string): Promise<ReportWithFindings | null> {
   try {
     if (
       !process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -244,13 +29,13 @@ async function getReport(id: string) {
       .single()
 
     if (error) throw error
-    return report ?? null
+    return (report as ReportWithFindings) ?? null
   } catch {
-    return { ...mockReport, id }
+    return null
   }
 }
 
-function groupFindingsBySeverity(findings: MockFinding[]) {
+function groupFindingsBySeverity(findings: Finding[]) {
   return {
     critical: findings.filter((f) => f.severity === 'critical'),
     moderate: findings.filter((f) => f.severity === 'moderate'),
@@ -265,7 +50,7 @@ export default async function ReportDetailPage({ params }: Props) {
   if (!report) notFound()
 
   const company = report.companies
-  const findings = (report.findings ?? []) as MockFinding[]
+  const findings = (report.findings ?? []) as Finding[]
   const grouped = groupFindingsBySeverity(findings)
 
   return (
