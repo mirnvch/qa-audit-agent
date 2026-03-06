@@ -3,11 +3,15 @@ import { PasswordForm } from '@/components/password-form'
 import { ThemeSelector } from '@/components/theme-selector'
 import { EmbedCode } from '@/components/embed-code'
 import { BrandingForm } from '@/components/branding-form'
+import { ApiKeysManager } from '@/components/api-keys-manager'
+import { TeamManager } from '@/components/team-manager'
+import { getCurrentUserRole } from '@/lib/auth/roles'
 import type { Branding } from '@/lib/supabase/types'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const userRole = await getCurrentUserRole()
 
   // Fetch branding (single row)
   let branding: Branding | null = null
@@ -81,6 +85,26 @@ export default async function SettingsPage() {
           <EmbedCode />
         </div>
       </section>
+
+      {/* Developer — API Keys */}
+      {userRole === 'admin' && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold tracking-tight">Developer</h2>
+          <div className="rounded-lg border border-border/50 p-4">
+            <ApiKeysManager />
+          </div>
+        </section>
+      )}
+
+      {/* Team Management */}
+      {userRole === 'admin' && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold tracking-tight">Team</h2>
+          <div className="rounded-lg border border-border/50 p-4">
+            <TeamManager currentUserId={user?.id ?? ''} />
+          </div>
+        </section>
+      )}
     </div>
   )
 }
