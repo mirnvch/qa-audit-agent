@@ -51,7 +51,7 @@ export type Finding = {
   created_at: string
 }
 
-export type ActivityAction = 'scanned' | 'sent' | 'viewed' | 'replied' | 'converted' | 'expired'
+export type ActivityAction = 'scanned' | 'sent' | 'viewed' | 'replied' | 'converted' | 'expired' | 'deleted' | 'email_sent'
 
 export type ActivityLog = {
   id: string

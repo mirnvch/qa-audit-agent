@@ -301,6 +301,12 @@ export default async function ReportDetailPage({ params }: Props) {
         reportId={report.id}
         reportCode={report.code}
         currentStatus={report.status as ReportStatus}
+        companyName={company?.name ?? ''}
+        contactName={company?.contact_name ?? null}
+        contactEmail={company?.contact_email ?? null}
+        domain={company?.domain ?? ''}
+        score={report.score}
+        findingsCount={findings.length}
       />
 
       <hr className="my-8 border-border/40" />
