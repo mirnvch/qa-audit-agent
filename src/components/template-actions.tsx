@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { ChevronDown, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,7 +22,12 @@ export function TemplateActions({ templateId }: Props) {
 
   async function handleDelete() {
     if (!confirm('Delete this template? This action cannot be undone.')) return
-    await deleteTemplate(templateId)
+    const result = await deleteTemplate(templateId)
+    if (result?.error) {
+      toast.error(result.error)
+    } else {
+      toast.success('Template deleted')
+    }
   }
 
   return (

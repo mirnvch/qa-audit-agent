@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { ChevronDown, Eye, Send, Link2, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,17 +23,28 @@ export function ReportActions({ reportId, reportCode }: Props) {
   const router = useRouter()
 
   async function handleMarkAsSent() {
-    await updateReportStatus(reportId, 'sent' as ReportStatus)
+    const result = await updateReportStatus(reportId, 'sent' as ReportStatus)
+    if (result?.error) {
+      toast.error(result.error)
+    } else {
+      toast.success('Report marked as sent')
+    }
   }
 
   async function handleDelete() {
     if (!confirm('Delete this report? This action cannot be undone.')) return
-    await deleteReport(reportId)
+    const result = await deleteReport(reportId)
+    if (result?.error) {
+      toast.error(result.error)
+    } else {
+      toast.success('Report deleted')
+    }
   }
 
   function handleCopyLink() {
     const url = `${window.location.origin}/r/${reportCode}`
     navigator.clipboard.writeText(url)
+    toast.success('Client link copied to clipboard')
   }
 
   return (

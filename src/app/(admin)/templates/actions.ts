@@ -66,8 +66,10 @@ export async function updateTemplate(id: string, formData: FormData) {
   redirect('/templates')
 }
 
-export async function deleteTemplate(id: string) {
+export async function deleteTemplate(id: string): Promise<{ error?: string }> {
   const supabase = await createClient()
-  await supabase.from('email_templates').delete().eq('id', id)
+  const { error } = await supabase.from('email_templates').delete().eq('id', id)
+  if (error) return { error: error.message }
   revalidatePath('/templates')
+  return {}
 }

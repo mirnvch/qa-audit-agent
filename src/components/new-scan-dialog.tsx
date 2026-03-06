@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,9 +27,11 @@ export function NewScanDialog() {
     startTransition(async () => {
       const result = await createScanRequest(formData)
       if (result.error) {
+        toast.error(result.error)
         setError(result.error)
         return
       }
+      toast.success('Scan request created')
       setOpen(false)
       router.push('/scans')
       router.refresh()

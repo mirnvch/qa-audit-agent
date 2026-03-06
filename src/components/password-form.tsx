@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { changePassword } from '@/app/(admin)/settings/actions'
@@ -8,20 +9,18 @@ import { changePassword } from '@/app/(admin)/settings/actions'
 export function PasswordForm() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setMessage(null)
 
     if (newPassword.length < 8) {
-      setMessage({ type: 'error', text: 'Password must be at least 8 characters' })
+      toast.error('Password must be at least 8 characters')
       return
     }
 
     if (newPassword !== confirmPassword) {
-      setMessage({ type: 'error', text: 'Passwords do not match' })
+      toast.error('Passwords do not match')
       return
     }
 
@@ -30,9 +29,9 @@ export function PasswordForm() {
     setLoading(false)
 
     if (result.error) {
-      setMessage({ type: 'error', text: result.error })
+      toast.error(result.error)
     } else {
-      setMessage({ type: 'success', text: 'Password updated successfully' })
+      toast.success('Password updated')
       setNewPassword('')
       setConfirmPassword('')
     }
@@ -58,11 +57,6 @@ export function PasswordForm() {
           placeholder="Repeat password"
         />
       </div>
-      {message && (
-        <p className={`text-sm ${message.type === 'success' ? 'text-emerald-500' : 'text-red-500'}`}>
-          {message.text}
-        </p>
-      )}
       <Button
         type="submit"
         variant="outline"

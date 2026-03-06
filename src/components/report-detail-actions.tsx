@@ -1,7 +1,8 @@
 'use client'
 
-import { Send, Link2, Check } from 'lucide-react'
+import { Send, Link2 } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { updateReportStatus } from '@/app/(admin)/reports/actions'
 import type { ReportStatus } from '@/lib/supabase/types'
@@ -13,21 +14,24 @@ type Props = {
 }
 
 export function ReportDetailActions({ reportId, reportCode, currentStatus }: Props) {
-  const [copied, setCopied] = useState(false)
   const [sending, setSending] = useState(false)
 
   async function handleMarkAsSent() {
     if (sending) return
     setSending(true)
-    await updateReportStatus(reportId, 'sent' as ReportStatus)
+    const result = await updateReportStatus(reportId, 'sent' as ReportStatus)
     setSending(false)
+    if (result?.error) {
+      toast.error(result.error)
+    } else {
+      toast.success('Report marked as sent')
+    }
   }
 
   function handleCopyLink() {
     const url = `${window.location.origin}/r/${reportCode}`
     navigator.clipboard.writeText(url).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      toast.success('Client link copied to clipboard')
     })
   }
 
@@ -51,12 +55,8 @@ export function ReportDetailActions({ reportId, reportCode, currentStatus }: Pro
         onClick={handleCopyLink}
         className="gap-2 font-mono text-xs"
       >
-        {copied ? (
-          <Check className="h-3.5 w-3.5 text-emerald-400" />
-        ) : (
-          <Link2 className="h-3.5 w-3.5" />
-        )}
-        {copied ? 'Copied!' : 'Copy Client Link'}
+        <Link2 className="h-3.5 w-3.5" />
+        Copy Client Link
       </Button>
     </div>
   )

@@ -30,7 +30,7 @@ async function getRawClient() {
   )
 }
 
-export async function updateReportStatus(reportId: string, status: ReportStatus) {
+export async function updateReportStatus(reportId: string, status: ReportStatus): Promise<{ error?: string }> {
   try {
     const supabase = await getRawClient()
     const action: ActivityAction = status === 'sent' ? 'sent' : (status as ActivityAction)
@@ -43,17 +43,19 @@ export async function updateReportStatus(reportId: string, status: ReportStatus)
     })
 
     revalidatePath('/reports')
-  } catch {
-    // Silently fail when DB not connected
+    return {}
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to update report status' }
   }
 }
 
-export async function deleteReport(reportId: string) {
+export async function deleteReport(reportId: string): Promise<{ error?: string }> {
   try {
     const supabase = await getRawClient()
     await supabase.from('reports').delete().eq('id', reportId)
     revalidatePath('/reports')
-  } catch {
-    // Silently fail when DB not connected
+    return {}
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to delete report' }
   }
 }

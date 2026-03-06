@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
@@ -32,9 +33,15 @@ export function TemplateForm({ action, defaultValues }: Props) {
   function handleSubmit(formData: FormData) {
     setError(null)
     startTransition(async () => {
-      const result = await action(formData)
-      if (result?.error) {
-        setError(result.error)
+      try {
+        const result = await action(formData)
+        if (result?.error) {
+          toast.error(result.error)
+          return
+        }
+        toast.success(defaultValues ? 'Template updated' : 'Template created')
+      } catch {
+        toast.error('An unexpected error occurred')
       }
     })
   }
