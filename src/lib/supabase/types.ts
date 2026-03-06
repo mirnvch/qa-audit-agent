@@ -61,6 +61,23 @@ export type ActivityLog = {
   created_at: string
 }
 
+export type ScanRequestStatus = 'pending' | 'scanning' | 'completed' | 'failed'
+
+export type ScanRequest = {
+  id: string
+  url: string
+  domain: string | null
+  status: ScanRequestStatus
+  contact_name: string | null
+  contact_email: string | null
+  report_id: string | null
+  error_message: string | null
+  ip_address: string | null
+  created_at: string
+  started_at: string | null
+  completed_at: string | null
+}
+
 // Joined types for queries
 export type ReportWithCompany = Report & {
   companies: Company
@@ -84,22 +101,48 @@ export type Database = {
         Row: Company
         Insert: Omit<Company, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<Company, 'id'>>
+        Relationships: []
       }
       reports: {
         Row: Report
         Insert: Omit<Report, 'id' | 'created_at' | 'view_count'> & { id?: string; created_at?: string; view_count?: number }
         Update: Partial<Omit<Report, 'id'>>
+        Relationships: []
       }
       findings: {
         Row: Finding
         Insert: Omit<Finding, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<Finding, 'id'>>
+        Relationships: []
       }
       activity_log: {
         Row: ActivityLog
         Insert: Omit<ActivityLog, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<ActivityLog, 'id'>>
+        Relationships: []
+      }
+      scan_requests: {
+        Row: ScanRequest
+        Insert: Pick<ScanRequest, 'url'> & {
+          id?: string
+          domain?: string | null
+          status?: ScanRequestStatus
+          contact_name?: string | null
+          contact_email?: string | null
+          report_id?: string | null
+          error_message?: string | null
+          ip_address?: string | null
+          created_at?: string
+          started_at?: string | null
+          completed_at?: string | null
+        }
+        Update: Partial<Omit<ScanRequest, 'id'>>
+        Relationships: []
       }
     }
+    Views: Record<string, never>
+    Functions: Record<string, never>
+    Enums: Record<string, never>
+    CompositeTypes: Record<string, never>
   }
 }

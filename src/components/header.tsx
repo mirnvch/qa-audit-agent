@@ -1,4 +1,5 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export function Header() {
   return (
@@ -12,6 +13,7 @@ export function Header() {
       </div>
       <div className="flex items-center gap-4">
         <span className="text-xs font-mono text-muted-foreground">REV. 1.0</span>
+        <ThemeToggle />
         <Avatar className="h-8 w-8">
           <AvatarFallback className="text-xs bg-muted">M</AvatarFallback>
         </Avatar>

@@ -87,3 +87,32 @@ create policy "Public update view count" on reports for update to anon using (tr
 
 -- Public can insert activity (for view tracking)
 create policy "Public insert activity" on activity_log for insert to anon with check (true);
+
+-- Scan Requests (self-service scan queue)
+create table if not exists scan_requests (
+  id uuid primary key default gen_random_uuid(),
+  url text not null,
+  domain text,
+  status text not null default 'pending'
+    check (status in ('pending', 'scanning', 'completed', 'failed')),
+  contact_name text,
+  contact_email text,
+  report_id uuid references reports(id) on delete set null,
+  error_message text,
+  ip_address text,
+  created_at timestamptz default now(),
+  started_at timestamptz,
+  completed_at timestamptz
+);
+
+create index if not exists idx_scan_requests_status on scan_requests(status);
+create index if not exists idx_scan_requests_ip on scan_requests(ip_address, created_at desc);
+
+alter table scan_requests enable row level security;
+
+create policy "Admin full access scan_requests"
+  on scan_requests for all using (auth.role() = 'authenticated');
+create policy "Public insert scan_requests"
+  on scan_requests for insert to anon with check (true);
+create policy "Public read scan_requests"
+  on scan_requests for select to anon using (true);

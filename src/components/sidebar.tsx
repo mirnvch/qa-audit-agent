@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import {
   LayoutDashboard,
   FileText,
+  ScanSearch,
   Target,
   Grid3X3,
   Settings,
@@ -15,6 +16,7 @@ import {
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, enabled: true },
   { href: '/reports', label: 'Reports', icon: FileText, enabled: true },
+  { href: '/scans', label: 'Scan Queue', icon: ScanSearch, enabled: true },
   { href: '/leads', label: 'Lead Pipeline', icon: Target, enabled: false },
   { href: '/templates', label: 'Email Templates', icon: Grid3X3, enabled: false },
   { href: '/settings', label: 'Settings', icon: Settings, enabled: false },
@@ -24,6 +26,7 @@ type QuickStats = {
   activeReports: number
   pendingViews: number
   weekReplies: number
+  pendingScans: number
 }
 
 export function Sidebar({ stats }: { stats: QuickStats }) {
@@ -101,6 +104,10 @@ export function Sidebar({ stats }: { stats: QuickStats }) {
           <div className="flex justify-between">
             <span className="text-muted-foreground">This Week Replies</span>
             <span className="font-medium">{stats.weekReplies}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Pending Scans</span>
+            <span className="font-medium">{stats.pendingScans}</span>
           </div>
         </div>
       </div>

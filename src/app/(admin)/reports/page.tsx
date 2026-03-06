@@ -153,7 +153,7 @@ async function getReports(statusFilter: string) {
       .order('created_at', { ascending: false })
 
     if (statusFilter !== 'all') {
-      query = query.eq('status', statusFilter)
+      query = query.eq('status', statusFilter as ReportStatus)
     }
 
     const { data: reports, error } = await query
