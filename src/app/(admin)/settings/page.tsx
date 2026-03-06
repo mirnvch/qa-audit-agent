@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { PasswordForm } from '@/components/password-form'
 import { ThemeSelector } from '@/components/theme-selector'
+import { EmbedCode } from '@/components/embed-code'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -51,6 +52,14 @@ export default async function SettingsPage() {
         <h2 className="text-lg font-semibold tracking-tight">Appearance</h2>
         <div className="rounded-lg border border-border/50 p-4">
           <ThemeSelector />
+        </div>
+      </section>
+
+      {/* Embed Widget */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold tracking-tight">Embed Widget</h2>
+        <div className="rounded-lg border border-border/50 p-4">
+          <EmbedCode />
         </div>
       </section>
     </div>
