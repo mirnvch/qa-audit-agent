@@ -1,36 +1,114 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QA Audit Agent
+
+Automated website QA audit platform. Scans websites for quality issues (UX, accessibility, performance, SEO) and generates actionable reports for clients.
+
+## Architecture
+
+```
+admin/          → Next.js 16 admin panel + client portal
+scripts/        → CLI worker (scan execution, report upload)
+supabase/       → Database schema, migrations, config
+```
+
+### Admin Panel (`/dashboard`, `/reports`, `/scans`)
+
+- **Dashboard** — overview stats, recent activity
+- **Reports** — manage audit reports, filter by status (draft/sent/viewed/replied)
+- **Scan Queue** — incoming scan requests with status tracking
+
+### Client Portal (`/r/[code]`)
+
+- Public report view by unique code
+- View tracking (count + activity log)
+
+### Self-Service Scan (`/scan`)
+
+- Public form to request a website audit
+- Real-time status polling (`/scan/status/[id]`)
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router, Server Components)
+- **Database:** Supabase (PostgreSQL + Auth + RLS)
+- **UI:** Tailwind CSS 4, shadcn/ui, Radix UI, Lucide icons
+- **Theme:** Light/dark toggle via next-themes
+- **Language:** TypeScript (strict mode)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 20+
+- Supabase project ([supabase.com](https://supabase.com))
+
+### Setup
+
+```bash
+cd admin
+npm install
+```
+
+Create `admin/.env.local`:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+Run the database schema in Supabase SQL Editor:
+
+```bash
+# File: admin/supabase/schema.sql
+```
+
+### Development
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## Database Schema
 
-To learn more about Next.js, take a look at the following resources:
+| Table | Purpose |
+|-------|---------|
+| `companies` | Scanned websites (domain, contact info) |
+| `reports` | Audit reports with scores and status |
+| `findings` | Individual issues (critical/moderate/minor) |
+| `activity_log` | Event tracking (scanned, sent, viewed, replied) |
+| `scan_requests` | Self-service scan queue |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+RLS enabled on all tables. Admin (authenticated) has full access; anon has read-only access to reports + can submit scan requests.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure
 
-## Deploy on Vercel
+```
+admin/src/
+├── app/
+│   ├── (admin)/           # Authenticated admin routes
+│   │   ├── dashboard/
+│   │   ├── reports/
+│   │   └── scans/
+│   ├── r/[code]/          # Public client portal
+│   ├── scan/              # Public scan request form
+│   ├── login/
+│   └── api/public/        # Public API endpoints
+├── components/
+│   ├── ui/                # shadcn/ui primitives
+│   └── ...                # App-specific components
+└── lib/
+    └── supabase/          # Client, types, service helpers
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## License
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Private — All rights reserved.
