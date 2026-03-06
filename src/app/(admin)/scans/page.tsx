@@ -11,8 +11,10 @@ import {
 import { ScanStatusBadge } from '@/components/scan-status-badge'
 import type { ScanRequest, ScanRequestStatus } from '@/lib/supabase/types'
 
+const PAGE_SIZE = 20
+
 type Props = {
-  searchParams: Promise<{ status?: string }>
+  searchParams: Promise<{ status?: string; page?: string }>
 }
 
 const STATUS_TABS = [
@@ -23,7 +25,10 @@ const STATUS_TABS = [
   { label: 'Failed', value: 'failed' },
 ] as const
 
-async function getScanRequests(statusFilter: string): Promise<ScanRequest[]> {
+async function getScanRequests(statusFilter: string, page: number): Promise<{ scans: ScanRequest[]; total: number }> {
+  const from = (page - 1) * PAGE_SIZE
+  const to = from + PAGE_SIZE - 1
+
   try {
     if (
       !process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -35,20 +40,20 @@ async function getScanRequests(statusFilter: string): Promise<ScanRequest[]> {
     const supabase = await createClient()
     let query = supabase
       .from('scan_requests')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
 
     if (statusFilter !== 'all') {
       query = query.eq('status', statusFilter as ScanRequestStatus)
     }
 
-    const { data, error } = await query
+    const { data, error, count } = await query.range(from, to)
 
     if (error) throw error
 
-    return (data ?? []) as ScanRequest[]
+    return { scans: (data ?? []) as ScanRequest[], total: count ?? 0 }
   } catch {
-    return []
+    return { scans: [], total: 0 }
   }
 }
 
@@ -61,11 +66,23 @@ function formatDate(dateStr: string) {
   })
 }
 
+function buildHref(basePath: string, params: Record<string, string | undefined>) {
+  const filtered = Object.entries(params).filter(
+    (entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== ''
+  )
+  if (filtered.length === 0) return basePath
+  return `${basePath}?${new URLSearchParams(filtered).toString()}`
+}
+
 export default async function ScansPage({ searchParams }: Props) {
   const params = await searchParams
   const statusFilter = params.status || 'all'
+  const page = Math.max(1, parseInt(params.page || '1', 10))
 
-  const scans = await getScanRequests(statusFilter)
+  const { scans, total } = await getScanRequests(statusFilter, page)
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const fromItem = (page - 1) * PAGE_SIZE + 1
+  const toItem = Math.min(page * PAGE_SIZE, total)
 
   return (
     <div className="p-6 lg:p-8 space-y-8">
@@ -82,8 +99,9 @@ export default async function ScansPage({ searchParams }: Props) {
         <div className="flex items-center gap-1 rounded-lg border border-border/50 p-1 bg-muted/20">
           {STATUS_TABS.map((tab) => {
             const isActive = statusFilter === tab.value
-            const href =
-              tab.value === 'all' ? '/scans' : `/scans?status=${tab.value}`
+            const href = buildHref('/scans', {
+              status: tab.value === 'all' ? undefined : tab.value,
+            })
 
             return (
               <Link
@@ -193,6 +211,42 @@ export default async function ScansPage({ searchParams }: Props) {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-mono text-muted-foreground/60">
+            Showing {fromItem}–{toItem} of {total}
+          </p>
+          <div className="flex items-center gap-2">
+            {page > 1 && (
+              <Link
+                href={buildHref('/scans', {
+                  status: statusFilter === 'all' ? undefined : statusFilter,
+                  page: String(page - 1),
+                })}
+                className="px-3 py-1.5 rounded-md text-xs font-mono font-medium border border-border/50 hover:bg-muted/40 transition-colors"
+              >
+                Previous
+              </Link>
+            )}
+            <span className="text-xs font-mono text-muted-foreground">
+              {page} / {totalPages}
+            </span>
+            {page < totalPages && (
+              <Link
+                href={buildHref('/scans', {
+                  status: statusFilter === 'all' ? undefined : statusFilter,
+                  page: String(page + 1),
+                })}
+                className="px-3 py-1.5 rounded-md text-xs font-mono font-medium border border-border/50 hover:bg-muted/40 transition-colors"
+              >
+                Next
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

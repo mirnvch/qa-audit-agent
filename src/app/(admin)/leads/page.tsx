@@ -12,8 +12,10 @@ import { LeadStatusBadge, type LeadStatus } from '@/components/lead-status-badge
 import { ReportStatusBadge } from '@/components/report-status-badge'
 import type { ReportStatus } from '@/lib/supabase/types'
 
+const PAGE_SIZE = 20
+
 type Props = {
-  searchParams: Promise<{ status?: string }>
+  searchParams: Promise<{ status?: string; page?: string }>
 }
 
 type CompanyReport = {
@@ -132,15 +134,32 @@ async function getLeads(): Promise<Lead[]> {
   }
 }
 
+function buildHref(basePath: string, params: Record<string, string | undefined>) {
+  const filtered = Object.entries(params).filter(
+    (entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== ''
+  )
+  if (filtered.length === 0) return basePath
+  return `${basePath}?${new URLSearchParams(filtered).toString()}`
+}
+
 export default async function LeadsPage({ searchParams }: Props) {
   const params = await searchParams
   const statusFilter = params.status || 'all'
+  const page = Math.max(1, parseInt(params.page || '1', 10))
 
   const allLeads = await getLeads()
-  const leads =
+  const filteredLeads =
     statusFilter === 'all'
       ? allLeads
       : allLeads.filter((l) => l.leadStatus === statusFilter)
+
+  const total = filteredLeads.length
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const fromIdx = (page - 1) * PAGE_SIZE
+  const toIdx = fromIdx + PAGE_SIZE - 1
+  const leads = filteredLeads.slice(fromIdx, toIdx + 1)
+  const fromItem = fromIdx + 1
+  const toItem = Math.min(page * PAGE_SIZE, total)
 
   return (
     <div className="p-6 lg:p-8 space-y-8">
@@ -157,8 +176,9 @@ export default async function LeadsPage({ searchParams }: Props) {
         <div className="flex items-center gap-1 rounded-lg border border-border/50 p-1 bg-muted/20">
           {STATUS_TABS.map((tab) => {
             const isActive = statusFilter === tab.value
-            const href =
-              tab.value === 'all' ? '/leads' : `/leads?status=${tab.value}`
+            const href = buildHref('/leads', {
+              status: tab.value === 'all' ? undefined : tab.value,
+            })
 
             return (
               <Link
@@ -298,6 +318,42 @@ export default async function LeadsPage({ searchParams }: Props) {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-mono text-muted-foreground/60">
+            Showing {fromItem}–{toItem} of {total}
+          </p>
+          <div className="flex items-center gap-2">
+            {page > 1 && (
+              <Link
+                href={buildHref('/leads', {
+                  status: statusFilter === 'all' ? undefined : statusFilter,
+                  page: String(page - 1),
+                })}
+                className="px-3 py-1.5 rounded-md text-xs font-mono font-medium border border-border/50 hover:bg-muted/40 transition-colors"
+              >
+                Previous
+              </Link>
+            )}
+            <span className="text-xs font-mono text-muted-foreground">
+              {page} / {totalPages}
+            </span>
+            {page < totalPages && (
+              <Link
+                href={buildHref('/leads', {
+                  status: statusFilter === 'all' ? undefined : statusFilter,
+                  page: String(page + 1),
+                })}
+                className="px-3 py-1.5 rounded-md text-xs font-mono font-medium border border-border/50 hover:bg-muted/40 transition-colors"
+              >
+                Next
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

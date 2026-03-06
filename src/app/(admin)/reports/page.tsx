@@ -13,8 +13,10 @@ import { SeverityChips } from '@/components/severity-chips'
 import { ReportActions } from '@/components/report-actions'
 import type { ReportStatus } from '@/lib/supabase/types'
 
+const PAGE_SIZE = 20
+
 type Props = {
-  searchParams: Promise<{ status?: string }>
+  searchParams: Promise<{ status?: string; page?: string; q?: string }>
 }
 
 type MockFinding = { severity: 'critical' | 'moderate' | 'minor' }
@@ -137,7 +139,10 @@ const STATUS_TABS = [
   { label: 'Replied', value: 'replied' },
 ] as const
 
-async function getReports(statusFilter: string) {
+async function getReports(statusFilter: string, page: number, search: string) {
+  const from = (page - 1) * PAGE_SIZE
+  const to = from + PAGE_SIZE - 1
+
   try {
     if (
       !process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -149,24 +154,38 @@ async function getReports(statusFilter: string) {
     const supabase = await createClient()
     let query = supabase
       .from('reports')
-      .select('*, companies(*), findings(severity)')
+      .select('*, companies(*), findings(severity)', { count: 'exact' })
       .order('created_at', { ascending: false })
 
     if (statusFilter !== 'all') {
       query = query.eq('status', statusFilter as ReportStatus)
     }
 
-    const { data: reports, error } = await query
+    if (search) {
+      query = query.or(`code.ilike.%${search}%,status.ilike.%${search}%`)
+    }
+
+    const { data: reports, error, count } = await query.range(from, to)
 
     if (error) throw error
 
-    return reports ?? []
+    return { reports: reports ?? [], total: count ?? 0 }
   } catch {
-    const filtered =
+    let filtered =
       statusFilter === 'all'
         ? mockReports
         : mockReports.filter((r) => r.status === statusFilter)
-    return filtered
+    if (search) {
+      const q = search.toLowerCase()
+      filtered = filtered.filter(
+        (r) =>
+          r.code.toLowerCase().includes(q) ||
+          r.companies.name.toLowerCase().includes(q) ||
+          r.companies.domain.toLowerCase().includes(q)
+      )
+    }
+    const total = filtered.length
+    return { reports: filtered.slice(from, to + 1), total }
   }
 }
 
@@ -178,11 +197,24 @@ function countSeverities(findings: { severity: string }[]) {
   }
 }
 
+function buildHref(basePath: string, params: Record<string, string | undefined>) {
+  const filtered = Object.entries(params).filter(
+    (entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== ''
+  )
+  if (filtered.length === 0) return basePath
+  return `${basePath}?${new URLSearchParams(filtered).toString()}`
+}
+
 export default async function ReportsPage({ searchParams }: Props) {
   const params = await searchParams
   const statusFilter = params.status || 'all'
+  const page = Math.max(1, parseInt(params.page || '1', 10))
+  const query = params.q || ''
 
-  const reports = await getReports(statusFilter)
+  const { reports, total } = await getReports(statusFilter, page, query)
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const from = (page - 1) * PAGE_SIZE + 1
+  const to = Math.min(page * PAGE_SIZE, total)
 
   return (
     <div className="p-6 lg:p-8 space-y-8">
@@ -199,8 +231,10 @@ export default async function ReportsPage({ searchParams }: Props) {
         <div className="flex items-center gap-1 rounded-lg border border-border/50 p-1 bg-muted/20">
           {STATUS_TABS.map((tab) => {
             const isActive = statusFilter === tab.value
-            const href =
-              tab.value === 'all' ? '/reports' : `/reports?status=${tab.value}`
+            const href = buildHref('/reports', {
+              status: tab.value === 'all' ? undefined : tab.value,
+              q: query || undefined,
+            })
 
             return (
               <Link
@@ -218,6 +252,19 @@ export default async function ReportsPage({ searchParams }: Props) {
           })}
         </div>
       </div>
+
+      {/* Search */}
+      <form className="relative flex-1 max-w-sm">
+        <input
+          name="q"
+          defaultValue={query}
+          placeholder="Search reports..."
+          className="w-full h-9 rounded-md border border-border/50 bg-muted/20 px-3 text-sm font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        {statusFilter !== 'all' && (
+          <input type="hidden" name="status" value={statusFilter} />
+        )}
+      </form>
 
       {/* Table */}
       <div className="rounded-lg border border-border/50 overflow-hidden">
@@ -329,6 +376,44 @@ export default async function ReportsPage({ searchParams }: Props) {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-mono text-muted-foreground/60">
+            Showing {from}–{to} of {total}
+          </p>
+          <div className="flex items-center gap-2">
+            {page > 1 && (
+              <Link
+                href={buildHref('/reports', {
+                  status: statusFilter === 'all' ? undefined : statusFilter,
+                  q: query || undefined,
+                  page: String(page - 1),
+                })}
+                className="px-3 py-1.5 rounded-md text-xs font-mono font-medium border border-border/50 hover:bg-muted/40 transition-colors"
+              >
+                Previous
+              </Link>
+            )}
+            <span className="text-xs font-mono text-muted-foreground">
+              {page} / {totalPages}
+            </span>
+            {page < totalPages && (
+              <Link
+                href={buildHref('/reports', {
+                  status: statusFilter === 'all' ? undefined : statusFilter,
+                  q: query || undefined,
+                  page: String(page + 1),
+                })}
+                className="px-3 py-1.5 rounded-md text-xs font-mono font-medium border border-border/50 hover:bg-muted/40 transition-colors"
+              >
+                Next
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

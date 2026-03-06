@@ -11,18 +11,28 @@ import {
 import { TemplateActions } from '@/components/template-actions'
 import type { EmailTemplate } from '@/lib/supabase/types'
 
-async function getTemplates(): Promise<EmailTemplate[]> {
+const PAGE_SIZE = 20
+
+type Props = {
+  searchParams: Promise<{ page?: string }>
+}
+
+async function getTemplates(page: number): Promise<{ templates: EmailTemplate[]; total: number }> {
+  const from = (page - 1) * PAGE_SIZE
+  const to = from + PAGE_SIZE - 1
+
   try {
     const supabase = await createClient()
-    const { data, error } = await supabase
+    const { data, error, count } = await supabase
       .from('email_templates')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
+      .range(from, to)
 
     if (error) throw error
-    return (data ?? []) as EmailTemplate[]
+    return { templates: (data ?? []) as EmailTemplate[], total: count ?? 0 }
   } catch {
-    return []
+    return { templates: [], total: 0 }
   }
 }
 
@@ -34,8 +44,14 @@ function formatDate(dateStr: string) {
   })
 }
 
-export default async function TemplatesPage() {
-  const templates = await getTemplates()
+export default async function TemplatesPage({ searchParams }: Props) {
+  const params = await searchParams
+  const page = Math.max(1, parseInt(params.page || '1', 10))
+
+  const { templates, total } = await getTemplates(page)
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const fromItem = (page - 1) * PAGE_SIZE + 1
+  const toItem = Math.min(page * PAGE_SIZE, total)
 
   return (
     <div className="p-6 lg:p-8 space-y-8">
@@ -141,6 +157,36 @@ export default async function TemplatesPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-mono text-muted-foreground/60">
+            Showing {fromItem}–{toItem} of {total}
+          </p>
+          <div className="flex items-center gap-2">
+            {page > 1 && (
+              <Link
+                href={page - 1 === 1 ? '/templates' : `/templates?page=${page - 1}`}
+                className="px-3 py-1.5 rounded-md text-xs font-mono font-medium border border-border/50 hover:bg-muted/40 transition-colors"
+              >
+                Previous
+              </Link>
+            )}
+            <span className="text-xs font-mono text-muted-foreground">
+              {page} / {totalPages}
+            </span>
+            {page < totalPages && (
+              <Link
+                href={`/templates?page=${page + 1}`}
+                className="px-3 py-1.5 rounded-md text-xs font-mono font-medium border border-border/50 hover:bg-muted/40 transition-colors"
+              >
+                Next
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
