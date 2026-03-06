@@ -132,3 +132,18 @@ alter table email_templates enable row level security;
 
 create policy "Admin full access email_templates"
   on email_templates for all using (auth.role() = 'authenticated');
+
+-- Branding / white-label
+create table if not exists branding (
+  id uuid primary key default gen_random_uuid(),
+  logo_url text,
+  company_name text,
+  primary_color text,
+  accent_color text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table branding enable row level security;
+create policy "Authenticated users can manage branding" on branding for all using (auth.role() = 'authenticated');
+create policy "Anyone can read branding" on branding for select using (true);

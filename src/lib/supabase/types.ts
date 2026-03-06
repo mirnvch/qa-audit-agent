@@ -88,6 +88,16 @@ export type EmailTemplate = {
   updated_at: string
 }
 
+export type Branding = {
+  id: string
+  logo_url: string | null
+  company_name: string | null
+  primary_color: string | null
+  accent_color: string | null
+  created_at: string
+  updated_at: string
+}
+
 // Joined types for queries
 export type ReportWithCompany = Report & {
   companies: Company
@@ -139,6 +149,16 @@ export type Database = {
           updated_at?: string
         }
         Update: Partial<Omit<EmailTemplate, 'id'>>
+        Relationships: []
+      }
+      branding: {
+        Row: Branding
+        Insert: Omit<Branding, 'id' | 'created_at' | 'updated_at'> & {
+          id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Omit<Branding, 'id'>>
         Relationships: []
       }
       scan_requests: {
