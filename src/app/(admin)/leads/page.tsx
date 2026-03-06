@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table'
 import { LeadStatusBadge, type LeadStatus } from '@/components/lead-status-badge'
 import { ReportStatusBadge } from '@/components/report-status-badge'
+import { ExportLeadsButton } from '@/components/export-leads-button'
 import type { ReportStatus } from '@/lib/supabase/types'
 
 const PAGE_SIZE = 20
@@ -165,11 +166,16 @@ export default async function LeadsPage({ searchParams }: Props) {
     <div className="p-6 lg:p-8 space-y-8">
       {/* Section Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[10px] font-mono text-muted-foreground/60 tracking-[0.15em] uppercase mb-1">
-            Section 04 · Lead Pipeline
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight">Lead Pipeline</h1>
+        <div className="flex items-center gap-4">
+          <div>
+            <p className="text-[10px] font-mono text-muted-foreground/60 tracking-[0.15em] uppercase mb-1">
+              Section 04 · Lead Pipeline
+            </p>
+            <h1 className="text-3xl font-bold tracking-tight">Lead Pipeline</h1>
+          </div>
+          {filteredLeads.length > 0 && (
+            <ExportLeadsButton leads={filteredLeads} />
+          )}
         </div>
 
         {/* Filter Tabs */}

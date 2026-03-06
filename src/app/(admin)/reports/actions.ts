@@ -67,3 +67,15 @@ export async function deleteReport(reportId: string): Promise<{ error?: string }
     return { error: e instanceof Error ? e.message : 'Failed to delete report' }
   }
 }
+
+export async function bulkDeleteReports(reportIds: string[]): Promise<{ error?: string }> {
+  try {
+    const supabase = await getRawClient()
+    const { error } = await supabase.from('reports').delete().in('id', reportIds)
+    if (error) throw error
+    revalidatePath('/reports')
+    return {}
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to delete reports' }
+  }
+}

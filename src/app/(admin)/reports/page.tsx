@@ -1,16 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { ReportStatusBadge } from '@/components/report-status-badge'
-import { SeverityChips } from '@/components/severity-chips'
-import { ReportActions } from '@/components/report-actions'
+import { ReportsTable } from '@/components/reports-table'
 import type { ReportStatus } from '@/lib/supabase/types'
 
 const PAGE_SIZE = 20
@@ -27,6 +17,7 @@ type MockReport = {
   status: ReportStatus
   score: number
   view_count: number
+  created_at: string
   companies: {
     name: string
     domain: string
@@ -42,6 +33,7 @@ const mockReports: MockReport[] = [
     status: 'viewed',
     score: 54,
     view_count: 3,
+    created_at: '2026-03-01T10:00:00Z',
     companies: {
       name: 'Bright Smile Dental',
       domain: 'brightsmile-dental.com',
@@ -64,6 +56,7 @@ const mockReports: MockReport[] = [
     status: 'sent',
     score: 69,
     view_count: 0,
+    created_at: '2026-03-02T10:00:00Z',
     companies: {
       name: 'Pacific Law Group',
       domain: 'pacificlawgroup.com',
@@ -82,6 +75,7 @@ const mockReports: MockReport[] = [
     status: 'replied',
     score: 24,
     view_count: 7,
+    created_at: '2026-03-03T10:00:00Z',
     companies: {
       name: 'Evergreen Chiropractic',
       domain: 'evergreenchiro.com',
@@ -102,6 +96,7 @@ const mockReports: MockReport[] = [
     status: 'expired',
     score: 75,
     view_count: 0,
+    created_at: '2026-03-04T10:00:00Z',
     companies: {
       name: 'Summit Financial Advisors',
       domain: 'summitfa.com',
@@ -115,6 +110,7 @@ const mockReports: MockReport[] = [
     status: 'draft',
     score: 45,
     view_count: 0,
+    created_at: '2026-03-05T10:00:00Z',
     companies: {
       name: 'Coastal Pediatrics',
       domain: 'coastalpediatrics.org',
@@ -189,14 +185,6 @@ async function getReports(statusFilter: string, page: number, search: string) {
   }
 }
 
-function countSeverities(findings: { severity: string }[]) {
-  return {
-    critical: findings.filter((f) => f.severity === 'critical').length,
-    moderate: findings.filter((f) => f.severity === 'moderate').length,
-    minor: findings.filter((f) => f.severity === 'minor').length,
-  }
-}
-
 function buildHref(basePath: string, params: Record<string, string | undefined>) {
   const filtered = Object.entries(params).filter(
     (entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== ''
@@ -266,116 +254,8 @@ export default async function ReportsPage({ searchParams }: Props) {
         )}
       </form>
 
-      {/* Table */}
-      <div className="rounded-lg border border-border/50 overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent border-b border-border/50">
-              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10">
-                Code
-              </TableHead>
-              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10">
-                Company
-              </TableHead>
-              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10">
-                Contact
-              </TableHead>
-              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10">
-                Status
-              </TableHead>
-              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10">
-                Issues
-              </TableHead>
-              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10 text-right">
-                Views
-              </TableHead>
-              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10 w-10" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {reports.length === 0 ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell
-                  colSpan={7}
-                  className="text-center text-muted-foreground py-12 font-mono text-sm"
-                >
-                  No reports found
-                </TableCell>
-              </TableRow>
-            ) : (
-              reports.map((report) => {
-                const counts = countSeverities(report.findings ?? [])
-                const company = report.companies
-
-                return (
-                  <TableRow
-                    key={report.id}
-                    className="cursor-pointer hover:bg-muted/30 transition-colors"
-                  >
-                    <TableCell>
-                      <Link
-                        href={`/reports/${report.id}`}
-                        className="block w-full h-full"
-                      >
-                        <span className="font-mono font-bold text-sm tracking-wider text-foreground">
-                          {report.code}
-                        </span>
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link
-                        href={`/reports/${report.id}`}
-                        className="block"
-                      >
-                        <div className="font-semibold text-sm text-foreground">
-                          {company?.name ?? '—'}
-                        </div>
-                        <div className="text-xs text-muted-foreground font-mono mt-0.5">
-                          {company?.domain ?? ''}
-                        </div>
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/reports/${report.id}`} className="block">
-                        <span className="text-sm text-foreground">
-                          {company?.contact_name ?? '—'}
-                        </span>
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/reports/${report.id}`} className="block">
-                        <ReportStatusBadge status={report.status as ReportStatus} />
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/reports/${report.id}`} className="block">
-                        <SeverityChips
-                          critical={counts.critical}
-                          moderate={counts.moderate}
-                          minor={counts.minor}
-                        />
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link href={`/reports/${report.id}`} className="block">
-                        <span className="font-mono text-sm">
-                          {report.view_count > 0 ? report.view_count : '—'}
-                        </span>
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <ReportActions
-                        reportId={report.id}
-                        reportCode={report.code}
-                      />
-                    </TableCell>
-                  </TableRow>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      {/* Table with bulk selection */}
+      <ReportsTable reports={reports} />
 
       {/* Pagination */}
       {total > PAGE_SIZE && (
