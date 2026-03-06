@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
+  BarChart3,
   FileText,
   ScanSearch,
   Target,
@@ -15,6 +16,7 @@ import { NewScanDialog } from '@/components/new-scan-dialog'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, enabled: true },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3, enabled: true },
   { href: '/reports', label: 'Reports', icon: FileText, enabled: true },
   { href: '/scans', label: 'Scan Queue', icon: ScanSearch, enabled: true },
   { href: '/leads', label: 'Lead Pipeline', icon: Target, enabled: true },
