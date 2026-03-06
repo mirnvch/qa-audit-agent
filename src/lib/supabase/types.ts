@@ -78,6 +78,16 @@ export type ScanRequest = {
   completed_at: string | null
 }
 
+export type EmailTemplate = {
+  id: string
+  name: string
+  subject: string
+  body: string
+  variables: string[]
+  created_at: string
+  updated_at: string
+}
+
 // Joined types for queries
 export type ReportWithCompany = Report & {
   companies: Company
@@ -119,6 +129,16 @@ export type Database = {
         Row: ActivityLog
         Insert: Omit<ActivityLog, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<ActivityLog, 'id'>>
+        Relationships: []
+      }
+      email_templates: {
+        Row: EmailTemplate
+        Insert: Omit<EmailTemplate, 'id' | 'created_at' | 'updated_at'> & {
+          id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Omit<EmailTemplate, 'id'>>
         Relationships: []
       }
       scan_requests: {

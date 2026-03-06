@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 import {
   LayoutDashboard,
   FileText,
@@ -10,16 +9,16 @@ import {
   Target,
   Grid3X3,
   Settings,
-  Plus,
 } from 'lucide-react'
+import { NewScanDialog } from '@/components/new-scan-dialog'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, enabled: true },
   { href: '/reports', label: 'Reports', icon: FileText, enabled: true },
   { href: '/scans', label: 'Scan Queue', icon: ScanSearch, enabled: true },
-  { href: '/leads', label: 'Lead Pipeline', icon: Target, enabled: false },
-  { href: '/templates', label: 'Email Templates', icon: Grid3X3, enabled: false },
-  { href: '/settings', label: 'Settings', icon: Settings, enabled: false },
+  { href: '/leads', label: 'Lead Pipeline', icon: Target, enabled: true },
+  { href: '/templates', label: 'Email Templates', icon: Grid3X3, enabled: true },
+  { href: '/settings', label: 'Settings', icon: Settings, enabled: true },
 ]
 
 type QuickStats = {
@@ -36,15 +35,7 @@ export function Sidebar({ stats }: { stats: QuickStats }) {
     <aside className="w-[250px] border-r border-border/50 flex flex-col h-screen sticky top-0">
       {/* New Scan Button */}
       <div className="p-4">
-        <Button
-          variant="outline"
-          className="w-full font-mono text-sm tracking-wider"
-          disabled
-          title="Run scan from CLI"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          NEW SCAN
-        </Button>
+        <NewScanDialog />
       </div>
 
       {/* Navigation */}

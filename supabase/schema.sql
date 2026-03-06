@@ -116,3 +116,19 @@ create policy "Public insert scan_requests"
   on scan_requests for insert to anon with check (true);
 create policy "Public read scan_requests"
   on scan_requests for select to anon using (true);
+
+-- Email Templates
+create table if not exists email_templates (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  subject text not null,
+  body text not null,
+  variables text[] default '{}',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table email_templates enable row level security;
+
+create policy "Admin full access email_templates"
+  on email_templates for all using (auth.role() = 'authenticated');

@@ -1,19 +1,137 @@
-export default function TemplatesPage() {
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/server'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { TemplateActions } from '@/components/template-actions'
+import type { EmailTemplate } from '@/lib/supabase/types'
+
+async function getTemplates(): Promise<EmailTemplate[]> {
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('email_templates')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return (data ?? []) as EmailTemplate[]
+  } catch {
+    return []
+  }
+}
+
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+export default async function TemplatesPage() {
+  const templates = await getTemplates()
+
   return (
     <div className="p-6 lg:p-8 space-y-8">
-      <div>
-        <p className="text-[10px] font-mono text-muted-foreground/60 tracking-[0.15em] uppercase mb-1">
-          Section · Coming Soon
-        </p>
-        <h1 className="text-3xl font-bold tracking-tight">Email Templates</h1>
-      </div>
-      <div className="flex items-center justify-center min-h-[400px] border border-dashed border-border/50 rounded-lg">
-        <div className="text-center space-y-2">
-          <p className="text-muted-foreground text-lg">Coming Soon</p>
-          <p className="text-muted-foreground/60 text-sm max-w-md">
-            Create and manage email templates for outreach. Customize messages for different industries.
+      {/* Section Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-mono text-muted-foreground/60 tracking-[0.15em] uppercase mb-1">
+            Section 05 · Email Templates
           </p>
+          <h1 className="text-3xl font-bold tracking-tight">Templates</h1>
         </div>
+
+        <Link
+          href="/templates/new"
+          className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-xs hover:bg-primary/90 transition-colors"
+        >
+          New Template
+        </Link>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-lg border border-border/50 overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent border-b border-border/50">
+              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10">
+                Name
+              </TableHead>
+              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10">
+                Subject
+              </TableHead>
+              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10">
+                Variables
+              </TableHead>
+              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10">
+                Created
+              </TableHead>
+              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10 w-10" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {templates.length === 0 ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell
+                  colSpan={5}
+                  className="text-center py-12"
+                >
+                  <div className="space-y-2">
+                    <p className="text-muted-foreground text-sm font-mono">
+                      No templates yet
+                    </p>
+                    <Link
+                      href="/templates/new"
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Create your first template
+                    </Link>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              templates.map((template) => (
+                <TableRow
+                  key={template.id}
+                  className="hover:bg-muted/30 transition-colors"
+                >
+                  <TableCell>
+                    <span className="font-semibold text-sm text-foreground">
+                      {template.name}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm text-muted-foreground truncate max-w-[300px] block">
+                      {template.subject}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {template.variables.length > 0
+                        ? template.variables.join(', ')
+                        : '--'}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm text-muted-foreground">
+                      {formatDate(template.created_at)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <TemplateActions templateId={template.id} />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   )
