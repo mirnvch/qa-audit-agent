@@ -10,6 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ScanStatusBadge } from '@/components/scan-status-badge'
+import { ScanActions } from '@/components/scan-actions'
 import type { ScanRequest, ScanRequestStatus } from '@/lib/supabase/types'
 
 const PAGE_SIZE = 20
@@ -135,13 +136,15 @@ export default async function ScansPage({ searchParams }: Props) {
               <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10">
                 Report
               </TableHead>
+              <TableHead className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground/60 font-medium h-10 w-10">
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {scans.length === 0 ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="text-center text-muted-foreground py-12 font-mono text-sm"
                 >
                   No scan requests found
@@ -196,6 +199,9 @@ export default async function ScansPage({ searchParams }: Props) {
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <ScanActions scanId={scan.id} status={scan.status} />
                   </TableCell>
                 </TableRow>
               ))

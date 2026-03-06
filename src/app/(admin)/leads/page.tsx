@@ -243,7 +243,7 @@ export default async function LeadsPage({ searchParams }: Props) {
                 >
                   <TableCell>
                     <Link
-                      href={`/reports/${lead.lastReportId}`}
+                      href={`/companies/${lead.companyId}`}
                       className="block"
                     >
                       <span className="font-semibold text-sm text-foreground">

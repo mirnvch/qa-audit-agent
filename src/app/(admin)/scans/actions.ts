@@ -46,3 +46,46 @@ export async function createScanRequest(formData: FormData): Promise<{ id?: stri
     return { error: 'Failed to create scan request' }
   }
 }
+
+export async function cancelScan(id: string): Promise<{ error?: string }> {
+  try {
+    const supabase = createServiceClient()
+    const { error } = await supabase
+      .from('scan_requests')
+      .update({
+        status: 'failed' as const,
+        error_message: 'Cancelled by admin',
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .in('status', ['pending', 'scanning'])
+
+    if (error) throw error
+    revalidatePath('/scans')
+    return {}
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to cancel scan' }
+  }
+}
+
+export async function retryScan(id: string): Promise<{ error?: string }> {
+  try {
+    const supabase = createServiceClient()
+    const { error } = await supabase
+      .from('scan_requests')
+      .update({
+        status: 'pending' as const,
+        error_message: null,
+        started_at: null,
+        completed_at: null,
+      })
+      .eq('id', id)
+      .eq('status', 'failed')
+
+    if (error) throw error
+    revalidatePath('/scans')
+    return {}
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to retry scan' }
+  }
+}
