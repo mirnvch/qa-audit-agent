@@ -35,28 +35,31 @@ async function getDashboardData() {
       stats: { scanned, sent, viewed, replied, conversion },
       funnel: { scanned, emailSent: sent, viewed, replied, converted: 0 },
       activities: (activityRes.data ?? []) as ActivityEntry[],
+      isOffline: false,
     }
   } catch {
-    // Fallback mock data when DB not connected
     return {
-      stats: { scanned: 12, sent: 10, viewed: 6, replied: 2, conversion: 20 },
-      funnel: { scanned: 12, emailSent: 10, viewed: 6, replied: 2, converted: 1 },
-      activities: [
-        { id: '1', action: 'replied', details: 'Dr. Amy Chen replied to report', created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
-        { id: '2', action: 'viewed', details: 'Bright Smile viewed report (3rd time)', created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString() },
-        { id: '3', action: 'sent', details: 'Report sent to Pacific Law Group', created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() },
-        { id: '4', action: 'scanned', details: 'Scan completed: Coastal Pediatrics', created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() },
-        { id: '5', action: 'expired', details: 'Summit Financial report expired', created_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString() },
-      ] satisfies ActivityEntry[],
+      stats: { scanned: 0, sent: 0, viewed: 0, replied: 0, conversion: 0 },
+      funnel: { scanned: 0, emailSent: 0, viewed: 0, replied: 0, converted: 0 },
+      activities: [],
+      isOffline: true,
     }
   }
 }
 
 export default async function DashboardPage() {
-  const { stats, funnel, activities } = await getDashboardData()
+  const { stats, funnel, activities, isOffline } = await getDashboardData()
 
   return (
     <div className="p-6 lg:p-8 space-y-8">
+      {isOffline && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+          <p className="text-sm text-amber-400 font-mono">
+            Unable to connect to database. Showing empty state.
+          </p>
+        </div>
+      )}
+
       {/* Section Header */}
       <div>
         <p className="text-[10px] font-mono text-muted-foreground/60 tracking-[0.15em] uppercase mb-1">

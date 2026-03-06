@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { formatDate } from '@/lib/format'
 import { createClient } from '@/lib/supabase/server'
 import {
   Table,
@@ -34,14 +35,6 @@ async function getTemplates(page: number): Promise<{ templates: EmailTemplate[];
   } catch {
     return { templates: [], total: 0 }
   }
-}
-
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
 }
 
 export default async function TemplatesPage({ searchParams }: Props) {

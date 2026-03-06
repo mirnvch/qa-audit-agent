@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { formatDate } from '@/lib/format'
 import { createClient } from '@/lib/supabase/server'
 import {
   Table,
@@ -55,15 +56,6 @@ async function getScanRequests(statusFilter: string, page: number): Promise<{ sc
   } catch {
     return { scans: [], total: 0 }
   }
-}
-
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 function buildHref(basePath: string, params: Record<string, string | undefined>) {
