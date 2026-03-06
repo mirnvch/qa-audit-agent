@@ -126,6 +126,30 @@ export type SequenceEnrollment = {
   created_at: string
 }
 
+export type ApiKey = {
+  id: string
+  name: string
+  key: string
+  created_at: string
+}
+
+export type Webhook = {
+  id: string
+  url: string
+  events: string[]
+  active: boolean
+  created_at: string
+}
+
+export type UserRole = 'admin' | 'operator' | 'viewer'
+
+export type UserRoleEntry = {
+  id: string
+  user_id: string
+  role: UserRole
+  created_at: string
+}
+
 // Joined types for queries
 export type ReportWithCompany = Report & {
   companies: Company
@@ -220,6 +244,24 @@ export type Database = {
           created_at?: string
         }
         Update: Partial<Omit<SequenceEnrollment, 'id'>>
+        Relationships: []
+      }
+      api_keys: {
+        Row: ApiKey
+        Insert: Omit<ApiKey, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<ApiKey, 'id'>>
+        Relationships: []
+      }
+      webhooks: {
+        Row: Webhook
+        Insert: Omit<Webhook, 'id' | 'created_at' | 'active'> & { id?: string; created_at?: string; active?: boolean }
+        Update: Partial<Omit<Webhook, 'id'>>
+        Relationships: []
+      }
+      user_roles: {
+        Row: UserRoleEntry
+        Insert: Omit<UserRoleEntry, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<UserRoleEntry, 'id'>>
         Relationships: []
       }
     }

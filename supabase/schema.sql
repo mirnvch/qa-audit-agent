@@ -173,3 +173,39 @@ create table if not exists sequence_enrollments (
 
 alter table sequence_enrollments enable row level security;
 create policy "Authenticated users can manage enrollments" on sequence_enrollments for all using (auth.role() = 'authenticated');
+
+-- API Keys
+create table if not exists api_keys (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  key text unique not null,
+  created_at timestamptz default now()
+);
+
+alter table api_keys enable row level security;
+create policy "Authenticated users can manage api_keys" on api_keys for all using (auth.role() = 'authenticated');
+
+-- Webhooks
+create table if not exists webhooks (
+  id uuid primary key default gen_random_uuid(),
+  url text not null,
+  events text[] default '{}',
+  active boolean default true,
+  created_at timestamptz default now()
+);
+
+alter table webhooks enable row level security;
+create policy "Authenticated users can manage webhooks" on webhooks for all using (auth.role() = 'authenticated');
+
+-- User roles
+create table if not exists user_roles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  role text not null default 'viewer' check (role in ('admin', 'operator', 'viewer')),
+  created_at timestamptz default now(),
+  unique(user_id)
+);
+
+alter table user_roles enable row level security;
+create policy "Authenticated users can read roles" on user_roles for select using (auth.role() = 'authenticated');
+create policy "Admins can manage roles" on user_roles for all using (auth.role() = 'authenticated');
