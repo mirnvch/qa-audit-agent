@@ -52,6 +52,14 @@ export async function updateReportStatus(reportId: string, status: ReportStatus)
 export async function deleteReport(reportId: string): Promise<{ error?: string }> {
   try {
     const supabase = await getRawClient()
+
+    // Log before delete (report won't exist after)
+    await supabase.from('activity_log').insert({
+      report_id: reportId,
+      action: 'deleted' as ActivityAction,
+      details: 'Report deleted by admin',
+    })
+
     await supabase.from('reports').delete().eq('id', reportId)
     revalidatePath('/reports')
     return {}
