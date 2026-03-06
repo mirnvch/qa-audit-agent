@@ -147,3 +147,29 @@ create table if not exists branding (
 alter table branding enable row level security;
 create policy "Authenticated users can manage branding" on branding for all using (auth.role() = 'authenticated');
 create policy "Anyone can read branding" on branding for select using (true);
+
+-- Email sequences
+create table if not exists email_sequences (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  steps jsonb not null default '[]',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table email_sequences enable row level security;
+create policy "Authenticated users can manage sequences" on email_sequences for all using (auth.role() = 'authenticated');
+
+-- Sequence enrollments
+create table if not exists sequence_enrollments (
+  id uuid primary key default gen_random_uuid(),
+  report_id uuid references reports(id) on delete cascade,
+  sequence_id uuid references email_sequences(id) on delete cascade,
+  current_step integer default 0,
+  next_send_at timestamptz,
+  status text default 'active' check (status in ('active', 'completed', 'cancelled')),
+  created_at timestamptz default now()
+);
+
+alter table sequence_enrollments enable row level security;
+create policy "Authenticated users can manage enrollments" on sequence_enrollments for all using (auth.role() = 'authenticated');

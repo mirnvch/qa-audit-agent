@@ -8,6 +8,7 @@ import {
   ScanSearch,
   Target,
   Grid3X3,
+  Workflow,
   Settings,
 } from 'lucide-react'
 import { NewScanDialog } from '@/components/new-scan-dialog'
@@ -18,6 +19,7 @@ const navItems = [
   { href: '/scans', label: 'Scan Queue', icon: ScanSearch, enabled: true },
   { href: '/leads', label: 'Lead Pipeline', icon: Target, enabled: true },
   { href: '/templates', label: 'Email Templates', icon: Grid3X3, enabled: true },
+  { href: '/sequences', label: 'Sequences', icon: Workflow, enabled: true },
   { href: '/settings', label: 'Settings', icon: Settings, enabled: true },
 ]
 

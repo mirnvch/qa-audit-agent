@@ -98,6 +98,34 @@ export type Branding = {
   updated_at: string
 }
 
+export type SequenceStep = {
+  delay_days: number
+  template_id: string
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type JsonValue = any
+
+export type EmailSequence = {
+  id: string
+  name: string
+  steps: SequenceStep[]
+  created_at: string
+  updated_at: string
+}
+
+export type SequenceEnrollmentStatus = 'active' | 'completed' | 'cancelled'
+
+export type SequenceEnrollment = {
+  id: string
+  report_id: string
+  sequence_id: string
+  current_step: number
+  next_send_at: string | null
+  status: SequenceEnrollmentStatus
+  created_at: string
+}
+
 // Joined types for queries
 export type ReportWithCompany = Report & {
   companies: Company
@@ -177,6 +205,21 @@ export type Database = {
           completed_at?: string | null
         }
         Update: Partial<Omit<ScanRequest, 'id'>>
+        Relationships: []
+      }
+      email_sequences: {
+        Row: EmailSequence
+        Insert: { name: string; steps: JsonValue; id?: string; created_at?: string; updated_at?: string }
+        Update: Partial<{ name: string; steps: JsonValue; created_at: string; updated_at: string }>
+        Relationships: []
+      }
+      sequence_enrollments: {
+        Row: SequenceEnrollment
+        Insert: Omit<SequenceEnrollment, 'id' | 'created_at'> & {
+          id?: string
+          created_at?: string
+        }
+        Update: Partial<Omit<SequenceEnrollment, 'id'>>
         Relationships: []
       }
     }
