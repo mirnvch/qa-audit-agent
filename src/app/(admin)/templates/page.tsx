@@ -100,29 +100,37 @@ export default async function TemplatesPage() {
               templates.map((template) => (
                 <TableRow
                   key={template.id}
-                  className="hover:bg-muted/30 transition-colors"
+                  className="cursor-pointer hover:bg-muted/30 transition-colors"
                 >
                   <TableCell>
-                    <span className="font-semibold text-sm text-foreground">
-                      {template.name}
-                    </span>
+                    <Link href={`/templates/${template.id}`} className="block">
+                      <span className="font-semibold text-sm text-foreground">
+                        {template.name}
+                      </span>
+                    </Link>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm text-muted-foreground truncate max-w-[300px] block">
-                      {template.subject}
-                    </span>
+                    <Link href={`/templates/${template.id}`} className="block">
+                      <span className="text-sm text-muted-foreground truncate max-w-[300px] block">
+                        {template.subject}
+                      </span>
+                    </Link>
                   </TableCell>
                   <TableCell>
-                    <span className="text-xs font-mono text-muted-foreground">
-                      {template.variables.length > 0
-                        ? template.variables.join(', ')
-                        : '--'}
-                    </span>
+                    <Link href={`/templates/${template.id}`} className="block">
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {template.variables.length > 0
+                          ? template.variables.join(', ')
+                          : '--'}
+                      </span>
+                    </Link>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm text-muted-foreground">
-                      {formatDate(template.created_at)}
-                    </span>
+                    <Link href={`/templates/${template.id}`} className="block">
+                      <span className="text-sm text-muted-foreground">
+                        {formatDate(template.created_at)}
+                      </span>
+                    </Link>
                   </TableCell>
                   <TableCell>
                     <TemplateActions templateId={template.id} />
