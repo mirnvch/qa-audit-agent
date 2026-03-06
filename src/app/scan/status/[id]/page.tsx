@@ -16,6 +16,8 @@ export default function ScanStatusPage() {
   const router = useRouter()
   const [data, setData] = useState<ScanStatus | null>(null)
   const [fetchError, setFetchError] = useState(false)
+  const [pollCount, setPollCount] = useState(0)
+  const [pollLimitReached, setPollLimitReached] = useState(false)
 
   const poll = useCallback(async () => {
     try {
@@ -33,13 +35,27 @@ export default function ScanStatusPage() {
   }, [id])
 
   useEffect(() => {
+    const MAX_POLLS = 150
+
     poll()
+    setPollCount(1)
+
     const interval = setInterval(async () => {
+      setPollCount((prev) => {
+        const next = prev + 1
+        if (next >= MAX_POLLS) {
+          clearInterval(interval)
+          setPollLimitReached(true)
+        }
+        return next
+      })
+
       const status = await poll()
       if (status === 'completed' || status === 'failed') {
         clearInterval(interval)
       }
     }, 8000)
+
     return () => clearInterval(interval)
   }, [poll])
 
@@ -77,10 +93,18 @@ export default function ScanStatusPage() {
               ? 'Our AI is analyzing your website. This usually takes ~5 minutes.'
               : 'Your scan is queued and will start shortly.'}
           </p>
-          <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground/50">
-            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-            Auto-refreshing every 8 seconds
-          </div>
+          {pollLimitReached ? (
+            <div className="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+              <p className="text-sm text-amber-200 text-center">
+                Scan is taking longer than expected. Please refresh the page.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground/50">
+              <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+              Auto-refreshing every 8 seconds
+            </div>
+          )}
         </StatusCard>
       </div>
     )
