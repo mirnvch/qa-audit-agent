@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   ScansPerDayChart,
   ConversionFunnelChart,
@@ -100,57 +99,54 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="p-6 lg:p-8 space-y-8">
-      {/* Section Header */}
-      <div>
-        <p className="text-[10px] font-mono text-muted-foreground/60 tracking-[0.15em] uppercase mb-1">
-          Section 06 · Analytics
+      {/* Section Header — blueprint style */}
+      <div className="flex items-end justify-between">
+        <div>
+          <p
+            className="text-[9px] tracking-[0.2em] uppercase text-slate-600 mb-1"
+            style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace' }}
+          >
+            Section 06 · Analytics · 30-Day Window
+          </p>
+          <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
+        </div>
+        <p
+          className="text-[9px] tracking-[0.12em] text-slate-600 hidden sm:block"
+          style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace' }}
+        >
+          SCALE: 1:1 · AUTO-REFRESH
         </p>
-        <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
+      </div>
+
+      {/* Divider line with dot */}
+      <div className="flex items-center gap-3">
+        <div className="w-1.5 h-1.5 rounded-full bg-cyan-400/40" />
+        <div className="flex-1 h-px bg-slate-700/40" />
+        <span
+          className="text-[8px] tracking-[0.15em] text-slate-600"
+          style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace' }}
+        >
+          DATA PANELS
+        </span>
+        <div className="flex-1 h-px bg-slate-700/40" />
+        <div className="w-1.5 h-1.5 rounded-full bg-cyan-400/40" />
       </div>
 
       {!hasAnyData ? (
         <div className="flex items-center justify-center py-24">
-          <p className="text-sm text-muted-foreground font-mono text-center max-w-md">
+          <p
+            className="text-xs text-slate-600 text-center max-w-md"
+            style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace', letterSpacing: '0.05em' }}
+          >
             No data yet. Analytics will populate as you scan websites and send reports.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-mono tracking-wide">Scans per Day</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScansPerDayChart data={scansByDay} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-mono tracking-wide">Conversion Funnel</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ConversionFunnelChart data={funnel} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-mono tracking-wide">Score Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScoreDistributionChart data={scoreDistribution} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-mono tracking-wide">Top Domains (Lowest Scores)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <TopDomainsChart data={topDomains} />
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <ScansPerDayChart data={scansByDay} />
+          <ConversionFunnelChart data={funnel} />
+          <ScoreDistributionChart data={scoreDistribution} />
+          <TopDomainsChart data={topDomains} />
         </div>
       )}
     </div>
