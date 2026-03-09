@@ -102,42 +102,30 @@ export default async function AnalyticsPage() {
       {/* Section Header — blueprint style */}
       <div className="flex items-end justify-between">
         <div>
-          <p
-            className="text-[9px] tracking-[0.2em] uppercase text-slate-600 mb-1"
-            style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace' }}
-          >
+          <p className="text-[9px] font-mono tracking-[0.2em] uppercase text-muted-foreground/50 mb-1">
             Section 06 · Analytics · 30-Day Window
           </p>
           <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
         </div>
-        <p
-          className="text-[9px] tracking-[0.12em] text-slate-600 hidden sm:block"
-          style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace' }}
-        >
+        <p className="text-[9px] font-mono tracking-[0.12em] text-muted-foreground/40 hidden sm:block">
           SCALE: 1:1 · AUTO-REFRESH
         </p>
       </div>
 
       {/* Divider line with dot */}
       <div className="flex items-center gap-3">
-        <div className="w-1.5 h-1.5 rounded-full bg-cyan-400/40" />
-        <div className="flex-1 h-px bg-slate-700/40" />
-        <span
-          className="text-[8px] tracking-[0.15em] text-slate-600"
-          style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace' }}
-        >
+        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500/40 dark:bg-cyan-400/40" />
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-[8px] font-mono tracking-[0.15em] text-muted-foreground/40">
           DATA PANELS
         </span>
-        <div className="flex-1 h-px bg-slate-700/40" />
-        <div className="w-1.5 h-1.5 rounded-full bg-cyan-400/40" />
+        <div className="flex-1 h-px bg-border" />
+        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500/40 dark:bg-cyan-400/40" />
       </div>
 
       {!hasAnyData ? (
         <div className="flex items-center justify-center py-24">
-          <p
-            className="text-xs text-slate-600 text-center max-w-md"
-            style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace', letterSpacing: '0.05em' }}
-          >
+          <p className="text-xs font-mono text-muted-foreground/60 text-center max-w-md tracking-wide">
             No data yet. Analytics will populate as you scan websites and send reports.
           </p>
         </div>

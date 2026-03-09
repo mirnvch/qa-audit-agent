@@ -1,5 +1,6 @@
 'use client'
 
+import { useTheme } from 'next-themes'
 import {
   BarChart,
   Bar,
@@ -18,16 +19,41 @@ type FunnelData = { stage: string; count: number }
 type ScoreDistData = { range: string; count: number }
 type TopDomainData = { domain: string; score: number }
 
-// ─── Blueprint palette ──────────────────────────────────────────────────────
-const GRID_DOT = '#1e293b'
-const AXIS = '#475569'
-const AXIS_TICK = '#64748b'
-const TOOLTIP_BG = '#0c1222'
-const TOOLTIP_BORDER = '#1e293b'
-const TEXT_DIM = '#94a3b8'
+// ─── Theme palettes for SVG (CSS vars don't work in SVG) ────────────────────
+const palettes = {
+  dark: {
+    axis: '#64748b',
+    axisTick: '#64748b',
+    grid: '#1e293b',
+    gridOpacity: 0.6,
+    tooltipBg: '#0c1222',
+    tooltipBorder: '#1e293b',
+    tooltipText: '#e2e8f0',
+    tooltipDim: '#94a3b8',
+    labelText: '#cbd5e1',
+    cursorFill: 'rgba(34,211,238,0.04)',
+  },
+  light: {
+    axis: '#94a3b8',
+    axisTick: '#64748b',
+    grid: '#e2e8f0',
+    gridOpacity: 0.8,
+    tooltipBg: '#0f172a',
+    tooltipBorder: '#1e293b',
+    tooltipText: '#e2e8f0',
+    tooltipDim: '#94a3b8',
+    labelText: '#334155',
+    cursorFill: 'rgba(99,102,241,0.06)',
+  },
+}
 
+function usePalette() {
+  const { resolvedTheme } = useTheme()
+  return resolvedTheme === 'dark' ? palettes.dark : palettes.light
+}
+
+// ─── Accent colors (same in both themes) ────────────────────────────────────
 const CYAN = '#22d3ee'
-const CYAN_DIM = '#0e7490'
 const EMERALD = '#34d399'
 const AMBER = '#fbbf24'
 const RED = '#f87171'
@@ -44,22 +70,23 @@ const SCORE_DIST_COLORS = [RED, '#fb923c', AMBER, EMERALD, '#10b981']
 
 // ─── Blueprint tooltip ──────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function BlueprintTooltip({ active, payload, label, suffix }: any) {
+function BlueprintTooltip({ active, payload, label, suffix, palette }: any) {
   if (!active || !payload?.length) return null
+  const p = palette ?? palettes.dark
   return (
     <div
       style={{
-        background: TOOLTIP_BG,
-        border: `1px solid ${TOOLTIP_BORDER}`,
+        background: p.tooltipBg,
+        border: `1px solid ${p.tooltipBorder}`,
         borderRadius: 2,
         padding: '6px 10px',
         fontSize: 11,
-        fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-        color: '#e2e8f0',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+        fontFamily: 'var(--font-geist-mono), monospace',
+        color: p.tooltipText,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
       }}
     >
-      <div style={{ color: TEXT_DIM, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+      <div style={{ color: p.tooltipDim, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
         {label}
       </div>
       <div style={{ fontWeight: 600, fontSize: 13, color: CYAN, marginTop: 2 }}>
@@ -69,23 +96,19 @@ function BlueprintTooltip({ active, payload, label, suffix }: any) {
   )
 }
 
-// ─── Corner markers (blueprint crosshairs) ──────────────────────────────────
+// ─── Corner markers ─────────────────────────────────────────────────────────
 function CornerMarkers() {
   return (
     <>
-      {/* Top-left */}
-      <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-slate-600/40" />
-      {/* Top-right */}
-      <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-slate-600/40" />
-      {/* Bottom-left */}
-      <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-slate-600/40" />
-      {/* Bottom-right */}
-      <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-slate-600/40" />
+      <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-border/60" />
+      <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-border/60" />
+      <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-border/60" />
+      <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-border/60" />
     </>
   )
 }
 
-// ─── Chart card wrapper ─────────────────────────────────────────────────────
+// ─── Chart card wrapper (theme-aware) ───────────────────────────────────────
 function ChartCard({
   label,
   rev,
@@ -98,12 +121,12 @@ function ChartCard({
   metrics?: { label: string; value: string | number; color?: string }[]
 }) {
   return (
-    <div className="relative rounded-sm border border-slate-700/50 bg-[#0a0f1a] p-0 overflow-hidden">
+    <div className="relative rounded-sm border border-border bg-card overflow-hidden">
       {/* Dot grid background */}
       <div
-        className="absolute inset-0 opacity-[0.04]"
+        className="absolute inset-0 opacity-[0.03] dark:opacity-[0.04]"
         style={{
-          backgroundImage: `radial-gradient(circle, #94a3b8 0.5px, transparent 0.5px)`,
+          backgroundImage: `radial-gradient(circle, currentColor 0.5px, transparent 0.5px)`,
           backgroundSize: '16px 16px',
         }}
       />
@@ -111,20 +134,14 @@ function ChartCard({
       <CornerMarkers />
 
       {/* Header bar */}
-      <div className="relative flex items-center justify-between px-4 py-2.5 border-b border-slate-700/30">
+      <div className="relative flex items-center justify-between px-4 py-2.5 border-b border-border/50">
         <div className="flex items-center gap-3">
-          <div className="w-1.5 h-1.5 rounded-full bg-cyan-400/60" />
-          <span
-            className="text-[10px] tracking-[0.18em] uppercase text-slate-400"
-            style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace' }}
-          >
+          <div className="w-1.5 h-1.5 rounded-full bg-cyan-500/60 dark:bg-cyan-400/60" />
+          <span className="text-[10px] font-mono tracking-[0.18em] uppercase text-muted-foreground">
             {label}
           </span>
         </div>
-        <span
-          className="text-[9px] tracking-[0.12em] text-slate-600"
-          style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace' }}
-        >
+        <span className="text-[9px] font-mono tracking-[0.12em] text-muted-foreground/40">
           {rev}
         </span>
       </div>
@@ -136,24 +153,18 @@ function ChartCard({
 
       {/* Metric readouts */}
       {metrics && metrics.length > 0 && (
-        <div className="relative flex border-t border-slate-700/30">
+        <div className="relative flex border-t border-border/50">
           {metrics.map((m, i) => (
             <div
               key={i}
-              className={`flex-1 px-4 py-2.5 ${i > 0 ? 'border-l border-slate-700/30' : ''}`}
+              className={`flex-1 px-4 py-2.5 ${i > 0 ? 'border-l border-border/50' : ''}`}
             >
-              <div
-                className="text-[8px] tracking-[0.15em] uppercase text-slate-600 mb-0.5"
-                style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace' }}
-              >
+              <div className="text-[8px] font-mono tracking-[0.15em] uppercase text-muted-foreground/50 mb-0.5">
                 {m.label}
               </div>
               <div
-                className="text-sm font-semibold"
-                style={{
-                  fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-                  color: m.color ?? CYAN,
-                }}
+                className="text-sm font-semibold font-mono"
+                style={{ color: m.color ?? CYAN }}
               >
                 {m.value}
               </div>
@@ -167,6 +178,7 @@ function ChartCard({
 
 // ─── Scans per Day (Area chart) ─────────────────────────────────────────────
 export function ScansPerDayChart({ data }: { data: ScansPerDayData[] }) {
+  const p = usePalette()
   const total = data.reduce((s, d) => s + d.count, 0)
   const peak = Math.max(...data.map(d => d.count))
   const avg = data.length > 0 ? (total / data.length).toFixed(1) : '0'
@@ -197,27 +209,22 @@ export function ScansPerDayChart({ data }: { data: ScansPerDayData[] }) {
               <stop offset="100%" stopColor={CYAN} stopOpacity={0.02} />
             </linearGradient>
           </defs>
-          <CartesianGrid
-            strokeDasharray="2 6"
-            stroke={GRID_DOT}
-            opacity={0.6}
-            vertical={false}
-          />
+          <CartesianGrid strokeDasharray="2 6" stroke={p.grid} opacity={p.gridOpacity} vertical={false} />
           <XAxis
             dataKey="date"
             tickFormatter={(v: string) => v.split('-')[2]}
-            tick={{ fill: AXIS_TICK, fontSize: 9, fontFamily: '"JetBrains Mono", monospace' }}
-            axisLine={{ stroke: AXIS, strokeWidth: 0.5 }}
+            tick={{ fill: p.axisTick, fontSize: 9, fontFamily: 'var(--font-geist-mono), monospace' }}
+            axisLine={{ stroke: p.axis, strokeWidth: 0.5 }}
             tickLine={false}
             interval="preserveStartEnd"
           />
           <YAxis
             allowDecimals={false}
-            tick={{ fill: AXIS_TICK, fontSize: 9, fontFamily: '"JetBrains Mono", monospace' }}
-            axisLine={{ stroke: AXIS, strokeWidth: 0.5 }}
+            tick={{ fill: p.axisTick, fontSize: 9, fontFamily: 'var(--font-geist-mono), monospace' }}
+            axisLine={{ stroke: p.axis, strokeWidth: 0.5 }}
             tickLine={false}
           />
-          <Tooltip content={<BlueprintTooltip />} cursor={{ stroke: CYAN, strokeWidth: 0.5, strokeDasharray: '3 3' }} />
+          <Tooltip content={<BlueprintTooltip palette={p} />} cursor={{ stroke: CYAN, strokeWidth: 0.5, strokeDasharray: '3 3' }} />
           <Area
             type="monotone"
             dataKey="count"
@@ -225,7 +232,7 @@ export function ScansPerDayChart({ data }: { data: ScansPerDayData[] }) {
             strokeWidth={1.5}
             fill="url(#cyanArea)"
             dot={false}
-            activeDot={{ r: 3, fill: CYAN, stroke: TOOLTIP_BG, strokeWidth: 2 }}
+            activeDot={{ r: 3, fill: CYAN, stroke: p.tooltipBg, strokeWidth: 2 }}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -235,6 +242,8 @@ export function ScansPerDayChart({ data }: { data: ScansPerDayData[] }) {
 
 // ─── Conversion Funnel ──────────────────────────────────────────────────────
 export function ConversionFunnelChart({ data }: { data: FunnelData[] }) {
+  const p = usePalette()
+
   if (data.every(d => d.count === 0)) {
     return (
       <ChartCard label="Conversion Funnel" rev="REV 2.0">
@@ -267,28 +276,23 @@ export function ConversionFunnelChart({ data }: { data: FunnelData[] }) {
               </linearGradient>
             ))}
           </defs>
-          <CartesianGrid
-            strokeDasharray="2 6"
-            stroke={GRID_DOT}
-            opacity={0.6}
-            horizontal={false}
-          />
+          <CartesianGrid strokeDasharray="2 6" stroke={p.grid} opacity={p.gridOpacity} horizontal={false} />
           <XAxis
             type="number"
             allowDecimals={false}
-            tick={{ fill: AXIS_TICK, fontSize: 9, fontFamily: '"JetBrains Mono", monospace' }}
-            axisLine={{ stroke: AXIS, strokeWidth: 0.5 }}
+            tick={{ fill: p.axisTick, fontSize: 9, fontFamily: 'var(--font-geist-mono), monospace' }}
+            axisLine={{ stroke: p.axis, strokeWidth: 0.5 }}
             tickLine={false}
           />
           <YAxis
             type="category"
             dataKey="stage"
-            tick={{ fill: '#cbd5e1', fontSize: 10, fontFamily: '"JetBrains Mono", monospace' }}
-            axisLine={{ stroke: AXIS, strokeWidth: 0.5 }}
+            tick={{ fill: p.labelText, fontSize: 10, fontFamily: 'var(--font-geist-mono), monospace' }}
+            axisLine={{ stroke: p.axis, strokeWidth: 0.5 }}
             tickLine={false}
             width={72}
           />
-          <Tooltip content={<BlueprintTooltip />} cursor={{ fill: 'rgba(34,211,238,0.04)' }} />
+          <Tooltip content={<BlueprintTooltip palette={p} />} cursor={{ fill: p.cursorFill }} />
           <Bar dataKey="count" radius={[0, 3, 3, 0]} barSize={24}>
             {data.map((_, index) => (
               <Cell key={index} fill={`url(#funnel${index})`} />
@@ -302,6 +306,7 @@ export function ConversionFunnelChart({ data }: { data: FunnelData[] }) {
 
 // ─── Score Distribution ─────────────────────────────────────────────────────
 export function ScoreDistributionChart({ data }: { data: ScoreDistData[] }) {
+  const p = usePalette()
   const totalScanned = data.reduce((s, d) => s + d.count, 0)
   const highScores = data.filter((_, i) => i >= 3).reduce((s, d) => s + d.count, 0)
   const healthRate = totalScanned > 0 ? ((highScores / totalScanned) * 100).toFixed(0) : '0'
@@ -321,7 +326,7 @@ export function ScoreDistributionChart({ data }: { data: ScoreDistData[] }) {
       metrics={[
         { label: 'Total Scored', value: totalScanned },
         { label: 'Health Rate', value: `${healthRate}%`, color: EMERALD },
-        { label: 'Ranges', value: '5', color: TEXT_DIM },
+        { label: 'Ranges', value: '5', color: p.axisTick },
       ]}
     >
       <ResponsiveContainer width="100%" height={220}>
@@ -334,25 +339,20 @@ export function ScoreDistributionChart({ data }: { data: ScoreDistData[] }) {
               </linearGradient>
             ))}
           </defs>
-          <CartesianGrid
-            strokeDasharray="2 6"
-            stroke={GRID_DOT}
-            opacity={0.6}
-            vertical={false}
-          />
+          <CartesianGrid strokeDasharray="2 6" stroke={p.grid} opacity={p.gridOpacity} vertical={false} />
           <XAxis
             dataKey="range"
-            tick={{ fill: AXIS_TICK, fontSize: 9, fontFamily: '"JetBrains Mono", monospace' }}
-            axisLine={{ stroke: AXIS, strokeWidth: 0.5 }}
+            tick={{ fill: p.axisTick, fontSize: 9, fontFamily: 'var(--font-geist-mono), monospace' }}
+            axisLine={{ stroke: p.axis, strokeWidth: 0.5 }}
             tickLine={false}
           />
           <YAxis
             allowDecimals={false}
-            tick={{ fill: AXIS_TICK, fontSize: 9, fontFamily: '"JetBrains Mono", monospace' }}
-            axisLine={{ stroke: AXIS, strokeWidth: 0.5 }}
+            tick={{ fill: p.axisTick, fontSize: 9, fontFamily: 'var(--font-geist-mono), monospace' }}
+            axisLine={{ stroke: p.axis, strokeWidth: 0.5 }}
             tickLine={false}
           />
-          <Tooltip content={<BlueprintTooltip />} cursor={{ fill: 'rgba(168,85,247,0.06)' }} />
+          <Tooltip content={<BlueprintTooltip palette={p} />} cursor={{ fill: 'rgba(168,85,247,0.06)' }} />
           <Bar dataKey="count" radius={[3, 3, 0, 0]}>
             {data.map((_, index) => (
               <Cell key={index} fill={`url(#score${index})`} />
@@ -366,10 +366,11 @@ export function ScoreDistributionChart({ data }: { data: ScoreDistData[] }) {
 
 // ─── Top Domains (Lowest Scores) ────────────────────────────────────────────
 export function TopDomainsChart({ data }: { data: TopDomainData[] }) {
+  const p = usePalette()
   const avgScore = data.length > 0
     ? (data.reduce((s, d) => s + d.score, 0) / data.length).toFixed(0)
     : '—'
-  const lowest = data.length > 0 ? data[data.length - 1]?.score ?? '—' : '—'
+  const lowest = data.length > 0 ? data[0]?.score ?? '—' : '—'
 
   if (data.length === 0) {
     return (
@@ -391,24 +392,19 @@ export function TopDomainsChart({ data }: { data: TopDomainData[] }) {
     >
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
-          <CartesianGrid
-            strokeDasharray="2 6"
-            stroke={GRID_DOT}
-            opacity={0.6}
-            horizontal={false}
-          />
+          <CartesianGrid strokeDasharray="2 6" stroke={p.grid} opacity={p.gridOpacity} horizontal={false} />
           <XAxis
             type="number"
             domain={[0, 100]}
-            tick={{ fill: AXIS_TICK, fontSize: 9, fontFamily: '"JetBrains Mono", monospace' }}
-            axisLine={{ stroke: AXIS, strokeWidth: 0.5 }}
+            tick={{ fill: p.axisTick, fontSize: 9, fontFamily: 'var(--font-geist-mono), monospace' }}
+            axisLine={{ stroke: p.axis, strokeWidth: 0.5 }}
             tickLine={false}
           />
           <YAxis
             type="category"
             dataKey="domain"
-            tick={{ fill: '#cbd5e1', fontSize: 9, fontFamily: '"JetBrains Mono", monospace' }}
-            axisLine={{ stroke: AXIS, strokeWidth: 0.5 }}
+            tick={{ fill: p.labelText, fontSize: 9, fontFamily: 'var(--font-geist-mono), monospace' }}
+            axisLine={{ stroke: p.axis, strokeWidth: 0.5 }}
             tickLine={false}
             width={110}
           />
@@ -419,17 +415,17 @@ export function TopDomainsChart({ data }: { data: TopDomainData[] }) {
               return (
                 <div
                   style={{
-                    background: TOOLTIP_BG,
-                    border: `1px solid ${TOOLTIP_BORDER}`,
+                    background: p.tooltipBg,
+                    border: `1px solid ${p.tooltipBorder}`,
                     borderRadius: 2,
                     padding: '6px 10px',
                     fontSize: 11,
-                    fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-                    color: '#e2e8f0',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                    fontFamily: 'var(--font-geist-mono), monospace',
+                    color: p.tooltipText,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
                   }}
                 >
-                  <div style={{ color: TEXT_DIM, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  <div style={{ color: p.tooltipDim, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     {d.domain}
                   </div>
                   <div style={{ fontWeight: 600, fontSize: 13, color: scoreColor(d.score), marginTop: 2 }}>
@@ -438,7 +434,7 @@ export function TopDomainsChart({ data }: { data: TopDomainData[] }) {
                 </div>
               )
             }}
-            cursor={{ fill: 'rgba(239,68,68,0.04)' }}
+            cursor={{ fill: p.cursorFill }}
           />
           <Bar dataKey="score" radius={[0, 3, 3, 0]} barSize={20}>
             {data.map((entry, index) => (
@@ -455,10 +451,7 @@ export function TopDomainsChart({ data }: { data: TopDomainData[] }) {
 function EmptyState({ message }: { message: string }) {
   return (
     <div className="flex items-center justify-center h-[220px]">
-      <span
-        className="text-xs text-slate-600"
-        style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace', letterSpacing: '0.05em' }}
-      >
+      <span className="text-xs font-mono text-muted-foreground/60 tracking-wide">
         {message}
       </span>
     </div>
