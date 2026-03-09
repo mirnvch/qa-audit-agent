@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { FindingCard } from '@/components/finding-card'
 import { ScoreCircle } from '@/components/score-circle'
+import Link from 'next/link'
 import { Lock, CheckCircle2, ExternalLink, CalendarDays, FileText } from 'lucide-react'
 import type { ReportWithFindings, Branding } from '@/lib/supabase/types'
 import { Separator } from '@/components/ui/separator'
@@ -320,7 +321,9 @@ export default async function ReportPage({
   return (
     <div className="w-full max-w-4xl flex flex-col gap-10 py-8" style={accentStyle}>
       {/* Logo */}
-      <Logo branding={branding} />
+      <Link href="/scan">
+        <Logo branding={branding} />
+      </Link>
 
       {/* Report header */}
       <div className="rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm p-6 shadow-xl shadow-black/10">

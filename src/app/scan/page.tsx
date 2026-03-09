@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import Link from 'next/link'
 import { Search, Loader2 } from 'lucide-react'
 
 export default function ScanPage() {
@@ -63,14 +64,14 @@ export default function ScanPage() {
   return (
     <div className="w-full max-w-md flex flex-col items-center gap-8">
       {/* Logo */}
-      <div className="flex items-center gap-3">
+      <Link href="/scan" className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
           <span className="text-white font-bold text-lg leading-none">Q</span>
         </div>
         <span className="text-xl font-semibold tracking-tight text-foreground">
           QualityShield
         </span>
-      </div>
+      </Link>
 
       {/* Card */}
       <div className="w-full rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm p-8 shadow-2xl shadow-black/20">
