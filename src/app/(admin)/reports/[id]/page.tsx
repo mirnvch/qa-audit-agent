@@ -55,13 +55,18 @@ export default async function ReportDetailPage({ params }: Props) {
 
   return (
     <div className="p-6 lg:p-8 max-w-4xl">
-      {/* Back link */}
-      <Link
-        href="/reports"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors font-mono mb-6"
-      >
-        ← Reports
-      </Link>
+      {/* Breadcrumbs */}
+      <nav className="flex items-center gap-1.5 text-sm font-mono mb-6">
+        <Link href="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
+          Dashboard
+        </Link>
+        <span className="text-muted-foreground/40">/</span>
+        <Link href="/reports" className="text-muted-foreground hover:text-foreground transition-colors">
+          Reports
+        </Link>
+        <span className="text-muted-foreground/40">/</span>
+        <span className="text-foreground">{report.code}</span>
+      </nav>
 
       {/* Header */}
       <div className="flex items-start justify-between gap-6 mb-6">
