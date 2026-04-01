@@ -26,6 +26,7 @@ create table if not exists reports (
   skipped_checks text[] default '{}',
   positives text[] default '{}',
   expires_at timestamptz,
+  first_viewed_at timestamptz,
   view_count int default 0,
   created_at timestamptz default now()
 );
@@ -209,3 +210,167 @@ create table if not exists user_roles (
 alter table user_roles enable row level security;
 create policy "Authenticated users can read roles" on user_roles for select using (auth.role() = 'authenticated');
 create policy "Admins can manage roles" on user_roles for all using (auth.role() = 'authenticated');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- QA Reports (added via migration 20260401_qa_reports.sql)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create extension if not exists pgcrypto;
+
+create or replace function update_updated_at()
+returns trigger as $$
+begin
+  NEW.updated_at = now();
+  return NEW;
+end;
+$$ language plpgsql;
+
+-- QA Projects
+create table if not exists qa_projects (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  normalized_name text not null unique check (normalized_name ~ '^[a-z0-9]+$'),
+  slug text not null unique check (slug ~ '^[a-z0-9][a-z0-9-]*$'),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create trigger set_updated_at_qa_projects
+  before update on qa_projects
+  for each row execute function update_updated_at();
+
+create or replace function protect_normalized_name()
+returns trigger as $$
+begin
+  if OLD.normalized_name is distinct from NEW.normalized_name then
+    raise exception 'normalized_name is immutable after creation';
+  end if;
+  return NEW;
+end;
+$$ language plpgsql;
+
+create trigger protect_normalized_name
+  before update on qa_projects
+  for each row execute function protect_normalized_name();
+
+-- QA Reports
+create table if not exists qa_reports (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references qa_projects(id) on delete cascade,
+  period_from date not null,
+  period_to date not null check (period_to >= period_from),
+  framework text,
+  ci text,
+  failures int not null default 0 check (failures >= 0),
+  active_scope int not null check (active_scope >= 0),
+  total_scope int not null check (total_scope >= 0),
+  duplicates_deleted int not null default 0 check (duplicates_deleted >= 0),
+  automated int not null check (automated >= 0),
+  discovered_tests int not null check (discovered_tests >= 0),
+  discovered_files int not null check (discovered_files >= 0),
+  discovered_static int not null check (discovered_static >= 0),
+  remaining int not null check (remaining >= 0),
+  remaining_planned int not null check (remaining_planned >= 0),
+  remaining_blocked int not null check (remaining_blocked >= 0),
+  plan_automated int not null check (plan_automated >= 0),
+  plan_planned int not null check (plan_planned >= 0),
+  plan_blocked int not null check (plan_blocked >= 0),
+  plan_manual int not null check (plan_manual >= 0),
+  execution_groups jsonb not null default '[]',
+  recent_progress jsonb,
+  needs_attention jsonb not null default '[]',
+  recommended_next jsonb not null default '[]',
+  ci_cd jsonb,
+  schema_version int not null default 1,
+  source_filename text,
+  source_checksum text,
+  uploaded_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (project_id, period_from, period_to)
+);
+
+create index idx_qa_reports_project_period on qa_reports (project_id, period_to desc);
+
+create trigger set_updated_at_qa_reports
+  before update on qa_reports
+  for each row execute function update_updated_at();
+
+-- QA Report Modules
+create table if not exists qa_report_modules (
+  id uuid primary key default gen_random_uuid(),
+  report_id uuid not null references qa_reports(id) on delete cascade,
+  module_key text not null check (module_key ~ '^[a-z0-9][a-z0-9_-]*$'),
+  name text not null,
+  done int not null check (done >= 0),
+  "left" int not null check ("left" >= 0),
+  sort_order int not null default 0,
+  unique (report_id, module_key)
+);
+
+create index idx_qa_report_modules_report on qa_report_modules (report_id, sort_order);
+
+-- QA Report Sections
+create table if not exists qa_report_sections (
+  id uuid primary key default gen_random_uuid(),
+  report_id uuid not null references qa_reports(id) on delete cascade,
+  section text not null,
+  type text not null check (type in ('covered', 'remaining')),
+  done int,
+  "left" int,
+  sort_order int not null default 0,
+  unique (report_id, section, type),
+  check (
+    (type = 'covered' and done is null and "left" is null)
+    or
+    (type = 'remaining' and done is not null and "left" is not null and done >= 0 and "left" >= 0)
+  )
+);
+
+create index idx_qa_report_sections_report on qa_report_sections (report_id, type, sort_order);
+
+-- QA Project Access
+create table if not exists qa_project_access (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null unique references qa_projects(id) on delete cascade,
+  code text not null unique check (code ~ '^[A-Za-z0-9_-]{22}$'),
+  is_active boolean not null default true,
+  show_history boolean not null default true,
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_user_roles_uid_role on user_roles (user_id, role);
+
+-- RLS for QA tables
+create or replace function has_qa_access()
+returns boolean
+language sql stable security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from user_roles
+    where user_id = auth.uid()
+      and role in ('admin', 'operator')
+  );
+$$;
+
+alter table qa_projects enable row level security;
+create policy "qa_read" on qa_projects for select to authenticated using (has_qa_access());
+create policy "qa_write" on qa_projects for all to authenticated using (has_qa_access()) with check (has_qa_access());
+
+alter table qa_reports enable row level security;
+create policy "qa_read" on qa_reports for select to authenticated using (has_qa_access());
+create policy "qa_write" on qa_reports for all to authenticated using (has_qa_access()) with check (has_qa_access());
+
+alter table qa_report_modules enable row level security;
+create policy "qa_read" on qa_report_modules for select to authenticated using (has_qa_access());
+create policy "qa_write" on qa_report_modules for all to authenticated using (has_qa_access()) with check (has_qa_access());
+
+alter table qa_report_sections enable row level security;
+create policy "qa_read" on qa_report_sections for select to authenticated using (has_qa_access());
+create policy "qa_write" on qa_report_sections for all to authenticated using (has_qa_access()) with check (has_qa_access());
+
+alter table qa_project_access enable row level security;
+create policy "qa_read" on qa_project_access for select to authenticated using (has_qa_access());
+create policy "qa_write" on qa_project_access for all to authenticated using (has_qa_access()) with check (has_qa_access());

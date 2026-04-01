@@ -6,18 +6,27 @@ export async function middleware(request: NextRequest) {
 
   // Public routes
   if (
+    pathname === '/' ||
     pathname.startsWith('/r') ||
     pathname.startsWith('/scan') ||
     pathname === '/login' ||
     pathname.startsWith('/auth/') ||
-    pathname.startsWith('/api/public/')
+    pathname.startsWith('/api/public/') ||
+    pathname === '/api/verify-code' ||
+    pathname.startsWith('/qa/')
   ) {
     return NextResponse.next()
   }
 
-  // Skip auth when Supabase env vars are not configured (local dev without DB)
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  // Skip auth only in explicit dev mode — never in production
+  if (process.env.DISABLE_AUTH === 'true' && process.env.NODE_ENV !== 'production') {
     return NextResponse.next()
+  }
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
   }
 
   let supabaseResponse = NextResponse.next({ request })

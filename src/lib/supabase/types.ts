@@ -23,6 +23,7 @@ export type Report = {
   skipped_checks: string[]
   positives: string[]
   expires_at: string | null
+  first_viewed_at: string | null
   view_count: number
   created_at: string
 }
@@ -149,6 +150,20 @@ export type UserRoleEntry = {
   role: UserRole
   created_at: string
 }
+
+// Re-export QA types
+export type {
+  QaProject,
+  QaReport,
+  QaReportModule,
+  QaReportSection,
+  QaProjectAccess,
+  QaReportHistoryItem,
+  ExecutionGroup,
+  RecentProgress,
+  AttentionItem,
+  CiCd,
+} from '@/lib/qa/schema'
 
 // Joined types for queries
 export type ReportWithCompany = Report & {
