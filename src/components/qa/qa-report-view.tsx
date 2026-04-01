@@ -56,10 +56,13 @@ export function QaReportView({
       />
       <QaRecommendations items={report.recommended_next} />
 
-      <SectionDivider />
-
-      {/* Infrastructure */}
-      <QaCiCdBlock ciCd={report.ci_cd} />
+      {/* Infrastructure — only render divider + block when CI/CD has content */}
+      {report.ci_cd && (report.ci_cd.pipelines.length > 0 || report.ci_cd.stack || report.ci_cd.wip_note) && (
+        <>
+          <SectionDivider />
+          <QaCiCdBlock ciCd={report.ci_cd} />
+        </>
+      )}
     </div>
   )
 }
