@@ -4,9 +4,15 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Root → dashboard redirect
+  if (pathname === '/') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
+  }
+
   // Public routes
   if (
-    pathname === '/' ||
     pathname.startsWith('/r') ||
     pathname.startsWith('/scan') ||
     pathname === '/login' ||
