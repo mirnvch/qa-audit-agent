@@ -46,6 +46,7 @@ const mockReport: ReportWithFindings = {
   tier: 'small',
   audit_date: '2026-03-04',
   expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+  first_viewed_at: null,
   created_at: '2026-03-04T00:00:00Z',
   pages_checked: ['/en', '/en/about', '/en/contact', '/en/properties', '/en/blog'],
   skipped_checks: [],
@@ -271,32 +272,7 @@ export default async function ReportPage({
     )
   }
 
-  // Track view (fire-and-forget, don't block render)
-  if (report.id !== 'mock') {
-    try {
-      const supabase = await getRawClient()
-      const newCount = (report.view_count || 0) + 1
-      const newStatus = report.status === 'sent' ? 'viewed' : report.status
-
-      await Promise.all([
-        supabase
-          .from('reports')
-          .update({
-            view_count: newCount,
-            status: newStatus,
-          })
-          .eq('id', report.id),
-
-        supabase.from('activity_log').insert({
-          report_id: report.id,
-          action: 'viewed',
-          details: `Report viewed (${newCount}x)`,
-        }),
-      ])
-    } catch {
-      // Non-critical — don't break the page
-    }
-  }
+  // View tracking is handled by POST /api/verify-code
 
   const { companies, findings, score, positives, summary, score_calculation, expires_at, pages_checked, audit_date } = report
 

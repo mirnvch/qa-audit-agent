@@ -13,6 +13,10 @@ function getServiceClient() {
   return createClient(url, key)
 }
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 type StepDef = { delay_days: number; template_id: string }
 
 type EnrollmentRow = {
@@ -87,11 +91,11 @@ export async function GET(request: Request) {
     const tpl = template as unknown as { subject: string; body: string }
 
     const variables: Record<string, string> = {
-      company_name: company.name,
-      contact_name: company.contact_name ?? '',
+      company_name: escapeHtml(company.name),
+      contact_name: escapeHtml(company.contact_name ?? ''),
       report_link: `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.qacamp.com'}/r/${(report as unknown as { code: string }).code}`,
       score: String((report as unknown as { score: number | null }).score ?? 0),
-      domain: company.domain,
+      domain: escapeHtml(company.domain),
       findings_count: '0',
     }
 

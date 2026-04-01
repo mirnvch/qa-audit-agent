@@ -21,12 +21,22 @@ export async function POST(request: NextRequest) {
   let parsedUrl = url.trim()
   if (!parsedUrl.startsWith('http')) parsedUrl = `https://${parsedUrl}`
 
-  let domain: string
+  let parsed: URL
   try {
-    domain = new URL(parsedUrl).hostname.replace(/^www\./, '')
+    parsed = new URL(parsedUrl)
   } catch {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
   }
+
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return NextResponse.json({ error: 'URL must use http or https' }, { status: 400 })
+  }
+
+  if (contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact_email)) {
+    return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
+  }
+
+  const domain = parsed.hostname.replace(/^www\./, '')
 
   const supabase = createServiceClient()
   const { data, error } = await supabase

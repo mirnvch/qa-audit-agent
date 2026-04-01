@@ -32,6 +32,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'url is required' }, { status: 400 })
   }
 
+  // Validate webhook URL: must be HTTPS, no internal IPs
+  let parsedWebhookUrl: URL
+  try {
+    parsedWebhookUrl = new URL(url)
+  } catch {
+    return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 })
+  }
+
+  if (parsedWebhookUrl.protocol !== 'https:') {
+    return NextResponse.json({ error: 'Webhook URL must use HTTPS' }, { status: 400 })
+  }
+
+  const hostname = parsedWebhookUrl.hostname
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.startsWith('10.') ||
+    hostname.startsWith('172.') ||
+    hostname.startsWith('192.168.') ||
+    hostname.startsWith('169.254.') ||
+    hostname === '0.0.0.0'
+  ) {
+    return NextResponse.json({ error: 'Internal/private URLs are not allowed' }, { status: 400 })
+  }
+
   if (!events || !Array.isArray(events) || events.length === 0) {
     return NextResponse.json({ error: 'events array is required' }, { status: 400 })
   }

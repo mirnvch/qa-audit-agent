@@ -26,6 +26,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid hostname' }, { status: 400 })
     }
 
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return NextResponse.json({ error: 'URL must use http or https' }, { status: 400 })
+    }
+
+    // Validate email format if provided
+    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+      return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
+    }
+
+    // Limit name length
+    if (contactName && contactName.length > 200) {
+      return NextResponse.json({ error: 'Name too long' }, { status: 400 })
+    }
+
     // Rate limit: 3 per IP per 24h
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       ?? request.headers.get('x-real-ip')
