@@ -1,3 +1,5 @@
+import type { CoverageGranularity } from '@/lib/qa/schema'
+
 type RemainingSection = {
   section: string
   done: number
@@ -6,20 +8,24 @@ type RemainingSection = {
 
 type Props = {
   sections: RemainingSection[]
+  granularity?: CoverageGranularity
 }
 
-export function QaHeaviestSections({ sections }: Props) {
+export function QaHeaviestSections({ sections, granularity = 'section' }: Props) {
   if (sections.length === 0) return null
+
+  const heading = granularity === 'module' ? 'Heaviest remaining modules' : 'Heaviest remaining sections'
+  const columnLabel = granularity === 'module' ? 'Module' : 'Section'
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-medium">Heaviest remaining sections</h3>
+      <h3 className="text-sm font-medium">{heading}</h3>
       <div className="rounded-lg border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/20">
               <th className="text-left px-4 py-2 text-[10px] font-mono tracking-[0.15em] uppercase text-muted-foreground/60">
-                Section
+                {columnLabel}
               </th>
               <th className="text-right px-4 py-2 text-[10px] font-mono tracking-[0.15em] uppercase text-muted-foreground/60">
                 Done

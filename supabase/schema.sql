@@ -285,10 +285,25 @@ create table if not exists qa_reports (
   source_filename text,
   source_checksum text,
   uploaded_by uuid references auth.users(id) on delete set null,
+  run_meta jsonb,
+  coverage_granularity text default 'section' check (coverage_granularity in ('section', 'module')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (project_id, period_from, period_to)
 );
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'qa_reports_run_meta_object_check'
+  ) then
+    alter table qa_reports
+      add constraint qa_reports_run_meta_object_check
+      check (run_meta is null or jsonb_typeof(run_meta) = 'object');
+  end if;
+end;
+$$;
 
 create index idx_qa_reports_project_period on qa_reports (project_id, period_to desc);
 
@@ -374,3 +389,323 @@ create policy "qa_write" on qa_report_sections for all to authenticated using (h
 alter table qa_project_access enable row level security;
 create policy "qa_read" on qa_project_access for select to authenticated using (has_qa_access());
 create policy "qa_write" on qa_project_access for all to authenticated using (has_qa_access()) with check (has_qa_access());
+
+create or replace function ingest_qa_report_core(
+  p_payload jsonb,
+  p_uploaded_by uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_project_id uuid;
+  v_report_id uuid;
+  v_normalized text;
+  v_now timestamptz := now();
+begin
+  v_normalized := regexp_replace(lower(p_payload->>'project'), '[^a-z0-9]', '', 'g');
+  if v_normalized = '' then
+    raise exception 'project name normalizes to empty string';
+  end if;
+
+  insert into qa_projects (name, normalized_name, slug)
+  values (p_payload->>'project', v_normalized, v_normalized)
+  on conflict (normalized_name) do nothing
+  returning id into v_project_id;
+
+  if v_project_id is null then
+    select id into strict v_project_id
+    from qa_projects
+    where normalized_name = v_normalized;
+  else
+    insert into qa_project_access (project_id, code, is_active, show_history)
+    values (
+      v_project_id,
+      rtrim(translate(encode(extensions.gen_random_bytes(16), 'base64'), '+/=', '-_'), '='),
+      true,
+      true
+    );
+  end if;
+
+  insert into qa_reports (
+    project_id, period_from, period_to,
+    framework, ci, failures,
+    active_scope, total_scope, duplicates_deleted,
+    automated, discovered_tests, discovered_files, discovered_static,
+    remaining, remaining_planned, remaining_blocked,
+    plan_automated, plan_planned, plan_blocked, plan_manual,
+    execution_groups, recent_progress, needs_attention, recommended_next, ci_cd,
+    schema_version, source_filename, source_checksum, uploaded_by, run_meta,
+    coverage_granularity,
+    created_at, updated_at
+  )
+  values (
+    v_project_id,
+    (p_payload->'period'->>'from')::date,
+    (p_payload->'period'->>'to')::date,
+    p_payload->>'framework',
+    p_payload->>'ci',
+    coalesce((p_payload->>'failures')::int, 0),
+    (p_payload->'summary'->>'active_scope')::int,
+    (p_payload->'summary'->>'total_scope')::int,
+    coalesce((p_payload->'summary'->>'duplicates_deleted')::int, 0),
+    (p_payload->'summary'->>'automated')::int,
+    (p_payload->'summary'->>'discovered_tests')::int,
+    (p_payload->'summary'->>'discovered_files')::int,
+    (p_payload->'summary'->>'discovered_static')::int,
+    (p_payload->'summary'->>'remaining')::int,
+    (p_payload->'summary'->>'remaining_planned')::int,
+    (p_payload->'summary'->>'remaining_blocked')::int,
+    (p_payload->'automation_plan'->>'automated')::int,
+    (p_payload->'automation_plan'->>'planned')::int,
+    (p_payload->'automation_plan'->>'blocked')::int,
+    (p_payload->'automation_plan'->>'manual')::int,
+    coalesce(p_payload->'execution_groups', '[]'::jsonb),
+    p_payload->'recent_progress',
+    coalesce(p_payload->'needs_attention', '[]'::jsonb),
+    coalesce(p_payload->'recommended_next', '[]'::jsonb),
+    p_payload->'ci_cd',
+    coalesce((p_payload->'_meta'->>'schema_version')::int, (p_payload->'run_meta'->>'schema_version')::int, 1),
+    p_payload->'_meta'->>'source_filename',
+    p_payload->'_meta'->>'source_checksum',
+    p_uploaded_by,
+    case
+      when jsonb_typeof(p_payload->'run_meta') = 'object' then p_payload->'run_meta'
+      else null
+    end,
+    coalesce(p_payload->>'coverage_granularity', 'section'),
+    v_now,
+    v_now
+  )
+  on conflict (project_id, period_from, period_to) do update set
+    framework = excluded.framework,
+    ci = excluded.ci,
+    failures = excluded.failures,
+    active_scope = excluded.active_scope,
+    total_scope = excluded.total_scope,
+    duplicates_deleted = excluded.duplicates_deleted,
+    automated = excluded.automated,
+    discovered_tests = excluded.discovered_tests,
+    discovered_files = excluded.discovered_files,
+    discovered_static = excluded.discovered_static,
+    remaining = excluded.remaining,
+    remaining_planned = excluded.remaining_planned,
+    remaining_blocked = excluded.remaining_blocked,
+    plan_automated = excluded.plan_automated,
+    plan_planned = excluded.plan_planned,
+    plan_blocked = excluded.plan_blocked,
+    plan_manual = excluded.plan_manual,
+    execution_groups = excluded.execution_groups,
+    recent_progress = excluded.recent_progress,
+    needs_attention = excluded.needs_attention,
+    recommended_next = excluded.recommended_next,
+    ci_cd = excluded.ci_cd,
+    schema_version = excluded.schema_version,
+    source_filename = excluded.source_filename,
+    source_checksum = excluded.source_checksum,
+    uploaded_by = excluded.uploaded_by,
+    run_meta = excluded.run_meta,
+    coverage_granularity = excluded.coverage_granularity,
+    updated_at = v_now
+  returning id into v_report_id;
+
+  delete from qa_report_modules where report_id = v_report_id;
+  delete from qa_report_sections where report_id = v_report_id;
+
+  insert into qa_report_modules (report_id, module_key, name, done, "left", sort_order)
+  select
+    v_report_id,
+    m.value->>'key',
+    m.value->>'name',
+    (m.value->>'done')::int,
+    (m.value->>'left')::int,
+    (m.ordinality - 1)::int
+  from jsonb_array_elements(coalesce(p_payload->'modules', '[]'::jsonb))
+    with ordinality as m;
+
+  insert into qa_report_sections (report_id, section, type, done, "left", sort_order)
+  select
+    v_report_id,
+    s.value #>> '{}',
+    'covered',
+    null,
+    null,
+    (s.ordinality - 1)::int
+  from jsonb_array_elements(coalesce(p_payload->'fully_covered_sections', '[]'::jsonb))
+    with ordinality as s;
+
+  insert into qa_report_sections (report_id, section, type, done, "left", sort_order)
+  select
+    v_report_id,
+    s.value->>'section',
+    'remaining',
+    (s.value->>'done')::int,
+    (s.value->>'left')::int,
+    (s.ordinality - 1)::int
+  from jsonb_array_elements(coalesce(p_payload->'heaviest_remaining', '[]'::jsonb))
+    with ordinality as s;
+
+  return jsonb_build_object(
+    'project_id', v_project_id,
+    'report_id', v_report_id
+  );
+end;
+$$;
+
+revoke all on function ingest_qa_report_core(jsonb, uuid) from public;
+revoke all on function ingest_qa_report_core(jsonb, uuid) from anon;
+revoke all on function ingest_qa_report_core(jsonb, uuid) from authenticated;
+revoke all on function ingest_qa_report_core(jsonb, uuid) from service_role;
+
+create or replace function ingest_qa_report(p_payload jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not has_qa_access() then
+    raise exception 'insufficient privileges: admin or operator role required';
+  end if;
+
+  return ingest_qa_report_core(p_payload, auth.uid());
+end;
+$$;
+
+revoke all on function ingest_qa_report(jsonb) from public;
+revoke execute on function ingest_qa_report(jsonb) from anon;
+revoke execute on function ingest_qa_report(jsonb) from service_role;
+grant execute on function ingest_qa_report(jsonb) to authenticated;
+
+create or replace function ingest_qa_report_service(p_payload jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.role() <> 'service_role' then
+    raise exception 'insufficient privileges: service role required';
+  end if;
+
+  return ingest_qa_report_core(p_payload, null);
+end;
+$$;
+
+revoke all on function ingest_qa_report_service(jsonb) from public;
+revoke execute on function ingest_qa_report_service(jsonb) from anon;
+revoke execute on function ingest_qa_report_service(jsonb) from authenticated;
+grant execute on function ingest_qa_report_service(jsonb) to service_role;
+
+-- Public read RPC
+create or replace function get_public_qa_report(
+  p_code text,
+  p_report_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_access record;
+  v_report record;
+  v_project record;
+begin
+  select project_id, is_active, show_history, expires_at
+  into v_access
+  from qa_project_access
+  where code = p_code;
+
+  if not found then return null; end if;
+  if not v_access.is_active then return null; end if;
+  if v_access.expires_at is not null and v_access.expires_at < now() then return null; end if;
+
+  select name, slug into v_project
+  from qa_projects where id = v_access.project_id;
+
+  if p_report_id is not null and v_access.show_history then
+    select * into v_report from qa_reports
+    where id = p_report_id and project_id = v_access.project_id;
+  end if;
+
+  if v_report is null then
+    select * into v_report from qa_reports
+    where project_id = v_access.project_id
+    order by period_to desc limit 1;
+  end if;
+
+  if v_report is null then return null; end if;
+
+  return jsonb_build_object(
+    'project', jsonb_build_object('name', v_project.name),
+    'report', jsonb_build_object(
+      'id', v_report.id,
+      'period_from', v_report.period_from,
+      'period_to', v_report.period_to,
+      'framework', v_report.framework,
+      'ci', v_report.ci,
+      'failures', v_report.failures,
+      'active_scope', v_report.active_scope,
+      'total_scope', v_report.total_scope,
+      'automated', v_report.automated,
+      'discovered_tests', v_report.discovered_tests,
+      'discovered_files', v_report.discovered_files,
+      'discovered_static', v_report.discovered_static,
+      'remaining', v_report.remaining,
+      'remaining_planned', v_report.remaining_planned,
+      'remaining_blocked', v_report.remaining_blocked,
+      'plan_automated', v_report.plan_automated,
+      'plan_planned', v_report.plan_planned,
+      'plan_blocked', v_report.plan_blocked,
+      'plan_manual', v_report.plan_manual,
+      'execution_groups', v_report.execution_groups,
+      'recent_progress', v_report.recent_progress,
+      'needs_attention', v_report.needs_attention,
+      'recommended_next', v_report.recommended_next,
+      'ci_cd', v_report.ci_cd,
+      'coverage_granularity', coalesce(v_report.coverage_granularity, 'section')
+    ),
+    'modules', (
+      select coalesce(jsonb_agg(
+        jsonb_build_object('name', m.name, 'done', m.done, 'left', m."left")
+        order by m.sort_order
+      ), '[]'::jsonb)
+      from qa_report_modules m where m.report_id = v_report.id
+    ),
+    'covered_sections', (
+      select coalesce(jsonb_agg(s.section order by s.sort_order), '[]'::jsonb)
+      from qa_report_sections s
+      where s.report_id = v_report.id and s.type = 'covered'
+    ),
+    'remaining_sections', (
+      select coalesce(jsonb_agg(
+        jsonb_build_object('section', s.section, 'done', s.done, 'left', s."left")
+        order by s.sort_order
+      ), '[]'::jsonb)
+      from qa_report_sections s
+      where s.report_id = v_report.id and s.type = 'remaining'
+    ),
+    'show_history', v_access.show_history,
+    'history', case when v_access.show_history then (
+      select coalesce(jsonb_agg(
+        jsonb_build_object(
+          'id', r.id, 'period_from', r.period_from, 'period_to', r.period_to,
+          'automated', r.automated, 'active_scope', r.active_scope
+        ) order by r.period_to desc
+      ), '[]'::jsonb)
+      from (
+        select id, period_from, period_to, automated, active_scope
+        from qa_reports where project_id = v_access.project_id
+        order by period_to desc limit 20
+      ) r
+    ) else '[]'::jsonb end
+  );
+end;
+$$;
+
+revoke all on function get_public_qa_report(text, uuid) from public;
+grant execute on function get_public_qa_report(text, uuid) to anon;
+grant execute on function get_public_qa_report(text, uuid) to authenticated;

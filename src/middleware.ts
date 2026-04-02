@@ -17,6 +17,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/scan') ||
     pathname === '/login' ||
     pathname.startsWith('/auth/') ||
+    pathname.startsWith('/api/v1/') ||
     pathname.startsWith('/api/public/') ||
     pathname === '/api/verify-code' ||
     pathname.startsWith('/qa/')

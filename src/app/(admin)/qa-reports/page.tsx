@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireQaAccess } from '@/lib/auth/require-qa-access'
 import { QaProjectCard } from '@/components/qa/qa-project-card'
 import { QaUploadDialog } from '@/components/qa/qa-upload-dialog'
+import { computeQaProjectRollup, type QaRollupHistoryPoint } from '@/lib/qa/rollup'
 import type { QaProject, QaReport } from '@/lib/qa/schema'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,22 +20,39 @@ async function getProjects() {
   }
 
   const projectIds = projects.map((p: QaProject) => p.id)
-  const { data: reports } = await (supabase.from as SupabaseAny)('qa_reports')
-    .select('*')
-    .in('project_id', projectIds)
-    .order('period_to', { ascending: false }) as { data: QaReport[] | null }
 
-  const latestByProject = new Map<string, QaReport>()
+  // Fetch last 2 reports per project for rollup (we need latest + previous for delta)
+  const { data: reports } = await (supabase.from as SupabaseAny)('qa_reports')
+    .select('id, project_id, period_from, period_to, automated, active_scope, remaining, failures, framework, ci')
+    .in('project_id', projectIds)
+    .order('period_to', { ascending: false }) as { data: (QaReport & { remaining: number; failures: number })[] | null }
+
+  const reportsByProject = new Map<string, typeof reports>()
   for (const r of reports ?? []) {
-    if (!latestByProject.has(r.project_id)) {
-      latestByProject.set(r.project_id, r)
-    }
+    const arr = reportsByProject.get(r.project_id) ?? []
+    arr.push(r)
+    reportsByProject.set(r.project_id, arr)
   }
 
-  return projects.map((p: QaProject) => ({
-    project: p,
-    latestReport: latestByProject.get(p.id) ?? null,
-  }))
+  return projects.map((p: QaProject) => {
+    const projectReports = reportsByProject.get(p.id) ?? []
+    const latestReport = projectReports[0] ?? null
+
+    // Compute lightweight rollup (no covered sections needed for card)
+    const rollupHistory: QaRollupHistoryPoint[] = projectReports.slice(0, 5).map(r => ({
+      id: r.id,
+      period_from: r.period_from,
+      period_to: r.period_to,
+      automated: r.automated,
+      active_scope: r.active_scope,
+      remaining: r.remaining,
+      failures: r.failures,
+      covered_sections: [], // Not needed for quality gate on list page
+    }))
+    const rollup = computeQaProjectRollup(rollupHistory)
+
+    return { project: p, latestReport, rollup }
+  })
 }
 
 export default async function QaReportsPage() {
@@ -71,11 +89,12 @@ export default async function QaReportsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projectsWithReports.map(({ project, latestReport }) => (
+          {projectsWithReports.map(({ project, latestReport, rollup }) => (
             <QaProjectCard
               key={project.id}
               project={project}
               latestReport={latestReport}
+              rollup={rollup}
             />
           ))}
         </div>

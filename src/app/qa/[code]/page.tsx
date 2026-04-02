@@ -118,6 +118,7 @@ export default async function PublicQaReportPage({ params, searchParams }: Props
           remainingSections={remainingSections}
           history={showHistory ? history : undefined}
           showHistory={showHistory}
+          coverageGranularity={data.report.coverage_granularity ?? 'section'}
         />
 
         {/* Footer */}

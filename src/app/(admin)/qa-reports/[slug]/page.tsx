@@ -5,7 +5,10 @@ import { QaReportView } from '@/components/qa/qa-report-view'
 import { QaReportSelector } from '@/components/qa/qa-report-selector'
 import { QaPublicAccessPanel } from '@/components/qa/qa-public-access-panel'
 import { QaUploadDialog } from '@/components/qa/qa-upload-dialog'
-import type { QaProject, QaReport, QaReportModule, QaReportSection, QaProjectAccess, QaReportHistoryItem } from '@/lib/qa/schema'
+import { QaProgressBlock } from '@/components/qa/qa-progress-block'
+import { QaRunMetaBlock } from '@/components/qa/qa-run-meta-block'
+import { computeQaProjectRollup, type QaRollupHistoryPoint } from '@/lib/qa/rollup'
+import type { QaProject, QaReport, QaReportModule, QaReportSection, QaProjectAccess, QaReportHistoryItem, RunMeta } from '@/lib/qa/schema'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
@@ -33,14 +36,17 @@ export default async function QaReportDashboardPage({ params, searchParams }: Pr
 
   if (!project) notFound()
 
-  // Get report history (capped at 20)
+  // Get report history with fields needed for rollup (capped at 20)
   const { data: historyRaw } = await (supabase.from as SupabaseAny)('qa_reports')
-    .select('id, period_from, period_to, automated, active_scope')
+    .select('id, period_from, period_to, automated, active_scope, remaining, failures')
     .eq('project_id', project.id)
     .order('period_to', { ascending: false })
-    .limit(20) as { data: QaReportHistoryItem[] | null }
+    .limit(20) as { data: (QaReportHistoryItem & { remaining: number; failures: number })[] | null }
 
-  const history = historyRaw ?? []
+  const historyForSelector: QaReportHistoryItem[] = (historyRaw ?? []).map(h => ({
+    id: h.id, period_from: h.period_from, period_to: h.period_to,
+    automated: h.automated, active_scope: h.active_scope,
+  }))
 
   // Resolve which report to show
   let report: QaReport | null = null
@@ -59,10 +65,10 @@ export default async function QaReportDashboardPage({ params, searchParams }: Pr
     }
   }
 
-  if (!report && history.length > 0) {
+  if (!report && historyRaw && historyRaw.length > 0) {
     const { data: latest } = await (supabase.from as SupabaseAny)('qa_reports')
       .select('*')
-      .eq('id', history[0].id)
+      .eq('id', historyRaw[0].id)
       .single() as { data: QaReport | null }
 
     report = latest
@@ -101,6 +107,43 @@ export default async function QaReportDashboardPage({ params, searchParams }: Pr
       .filter(s => s.type === 'remaining')
       .map(s => ({ section: s.section, done: s.done!, left: s.left! }))
   }
+
+  // Compute rollup — need covered sections per report for latest + previous
+  let rollup = computeQaProjectRollup([]) // default empty
+  if (historyRaw && historyRaw.length > 0) {
+    // Fetch covered sections for the two most recent reports
+    const reportIds = historyRaw.slice(0, 2).map(h => h.id)
+    const { data: coveredRows } = await (supabase.from as SupabaseAny)('qa_report_sections')
+      .select('report_id, section')
+      .in('report_id', reportIds)
+      .eq('type', 'covered') as { data: { report_id: string; section: string }[] | null }
+
+    const coveredByReport = new Map<string, string[]>()
+    for (const row of coveredRows ?? []) {
+      const arr = coveredByReport.get(row.report_id) ?? []
+      arr.push(row.section)
+      coveredByReport.set(row.report_id, arr)
+    }
+
+    const rollupHistory: QaRollupHistoryPoint[] = historyRaw.map(h => ({
+      id: h.id,
+      period_from: h.period_from,
+      period_to: h.period_to,
+      automated: h.automated,
+      active_scope: h.active_scope,
+      remaining: h.remaining,
+      failures: h.failures,
+      covered_sections: coveredByReport.get(h.id) ?? [],
+    }))
+
+    rollup = computeQaProjectRollup(rollupHistory)
+  }
+
+  // Extract run_meta from latest report
+  const runMeta: RunMeta | null = report?.run_meta ?? null
+
+  // Use explicit granularity from report, default to 'section' for old data
+  const coverageGranularity = report?.coverage_granularity ?? 'section'
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
@@ -152,11 +195,13 @@ export default async function QaReportDashboardPage({ params, searchParams }: Pr
 
           <div className="flex items-center gap-3 shrink-0">
             {report && (
-              <QaReportSelector history={history} currentReportId={report.id} />
+              <QaReportSelector history={historyForSelector} currentReportId={report.id} />
             )}
             <QaUploadDialog />
           </div>
         </div>
+
+        {runMeta && <QaRunMetaBlock runMeta={runMeta} />}
 
         {access && (
           <QaPublicAccessPanel
@@ -165,6 +210,11 @@ export default async function QaReportDashboardPage({ params, searchParams }: Pr
           />
         )}
       </div>
+
+      {/* Project Progress */}
+      {rollup.latestReport && (
+        <QaProgressBlock rollup={rollup} />
+      )}
 
       {/* Divider */}
       <div className="flex items-center gap-3">
@@ -185,8 +235,9 @@ export default async function QaReportDashboardPage({ params, searchParams }: Pr
           modules={modules}
           coveredSections={coveredSections}
           remainingSections={remainingSections}
-          history={history}
+          history={historyForSelector}
           showHistory={true}
+          coverageGranularity={coverageGranularity}
         />
       ) : (
         <div className="flex items-center justify-center py-24">

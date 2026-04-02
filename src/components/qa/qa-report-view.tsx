@@ -20,6 +20,7 @@ export function QaReportView({
   coveredSections,
   remainingSections,
   history,
+  coverageGranularity,
 }: QaReportViewProps) {
   return (
     <div className="space-y-8">
@@ -44,8 +45,8 @@ export function QaReportView({
 
       {/* Coverage detail */}
       <QaModuleCoverage modules={modules} />
-      <QaCoveredSections sections={coveredSections} />
-      <QaHeaviestSections sections={remainingSections} />
+      <QaCoveredSections sections={coveredSections} granularity={coverageGranularity} />
+      <QaHeaviestSections sections={remainingSections} granularity={coverageGranularity} />
 
       <SectionDivider />
 

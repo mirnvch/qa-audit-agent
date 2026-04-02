@@ -1,26 +1,32 @@
 import { z } from 'zod'
 
-// ─── Upload payload Zod schema ─────────────────────────────────────────────
-
 const moduleKeyRegex = /^[a-z0-9][a-z0-9_-]*$/
 
-function isValidCalendarDate(s: string): boolean {
-  const d = new Date(s + 'T00:00:00Z')
-  if (isNaN(d.getTime())) return false
-  // Verify round-trip: new Date('2026-02-30') becomes 2026-03-02
-  return d.toISOString().startsWith(s)
+export function isValidCalendarDate(value: string): boolean {
+  const date = new Date(value + 'T00:00:00Z')
+  if (isNaN(date.getTime())) return false
+  return date.toISOString().startsWith(value)
 }
 
-const dateString = z.string()
+function isValidIsoDateTime(value: string): boolean {
+  return !isNaN(Date.parse(value))
+}
+
+export const dateString = z.string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD format')
   .refine(isValidCalendarDate, 'must be a valid calendar date')
 
-const periodSchema = z.object({
+export const isoDateTimeString = z.string()
+  .refine(isValidIsoDateTime, 'must be a valid ISO date-time')
+
+export const periodSchema = z.object({
   from: dateString,
   to: dateString,
-}).refine(d => d.to >= d.from, { message: 'period.to must be >= period.from' })
+}).refine((value) => value.to >= value.from, {
+  message: 'period.to must be >= period.from',
+})
 
-const summarySchema = z.object({
+export const summarySchema = z.object({
   active_scope: z.number().int().nonnegative(),
   total_scope: z.number().int().nonnegative(),
   duplicates_deleted: z.number().int().nonnegative().default(0),
@@ -33,14 +39,14 @@ const summarySchema = z.object({
   remaining_blocked: z.number().int().nonnegative(),
 })
 
-const automationPlanSchema = z.object({
+export const automationPlanSchema = z.object({
   automated: z.number().int().nonnegative(),
   planned: z.number().int().nonnegative(),
   blocked: z.number().int().nonnegative(),
   manual: z.number().int().nonnegative(),
 })
 
-const executionGroupSchema = z.object({
+export const executionGroupSchema = z.object({
   name: z.string().min(1),
   count: z.number().int().nonnegative(),
   files: z.number().int().nonnegative().optional(),
@@ -49,39 +55,54 @@ const executionGroupSchema = z.object({
   note: z.string().optional(),
 })
 
-const moduleSchema = z.object({
+export const moduleSchema = z.object({
   key: z.string().regex(moduleKeyRegex, 'module key must be lowercase alphanumeric with optional hyphens/underscores'),
   name: z.string().min(1),
   done: z.number().int().nonnegative(),
   left: z.number().int().nonnegative(),
 })
 
-const heaviestRemainingSchema = z.object({
+export const heaviestRemainingSchema = z.object({
   section: z.string().min(1),
   done: z.number().int().nonnegative(),
   left: z.number().int().nonnegative(),
 })
 
-const progressItemSchema = z.object({
+export const progressItemSchema = z.object({
   text: z.string().min(1),
   badge: z.string().optional(),
 })
 
-const attentionItemSchema = z.object({
+export const attentionItemSchema = z.object({
   text: z.string().min(1),
   badge: z.string().optional(),
 })
 
-const recentProgressSchema = z.object({
+export const recentProgressSchema = z.object({
   period_days: z.number().int().positive(),
   items: z.array(progressItemSchema),
 })
 
-const ciCdSchema = z.object({
+export const ciCdSchema = z.object({
   pipelines: z.array(z.string()),
   stack: z.string().optional(),
   wip_note: z.string().optional(),
 })
+
+export const qaRunMetaSchema = z.object({
+  schema_version: z.number().int().positive().default(1),
+  generated_at: isoDateTimeString,
+  branch: z.string().min(1),
+  commit_sha: z.string().regex(/^[0-9a-f]{7,64}$/i, 'must look like a git commit SHA'),
+  build_url: z.string().url().optional(),
+  pipeline: z.string().min(1),
+}).strict()
+
+export const qaIngestMetaSchema = z.object({
+  schema_version: z.number().int().positive().optional(),
+  source_filename: z.string().min(1).optional(),
+  source_checksum: z.string().min(1).optional(),
+}).strict()
 
 export const qaReportPayloadSchema = z.object({
   project: z.string().min(1),
@@ -99,11 +120,25 @@ export const qaReportPayloadSchema = z.object({
   recommended_next: z.array(z.string()).default([]),
   ci_cd: ciCdSchema.optional(),
   failures: z.number().int().nonnegative().default(0),
+  coverage_granularity: z.enum(['section', 'module']).default('section'),
+})
+
+export const qaIngestPayloadSchema = qaReportPayloadSchema.extend({
+  run_meta: qaRunMetaSchema.optional(),
+  _meta: qaIngestMetaSchema.optional(),
 })
 
 export type QaReportPayload = z.infer<typeof qaReportPayloadSchema>
+export type QaIngestPayload = z.infer<typeof qaIngestPayloadSchema>
 
-// ─── Types for DB rows / UI props ──────────────────────────────────────────
+export type ExecutionGroup = z.infer<typeof executionGroupSchema>
+export type RecentProgress = z.infer<typeof recentProgressSchema>
+export type AttentionItem = z.infer<typeof attentionItemSchema>
+export type CiCd = z.infer<typeof ciCdSchema>
+export type RunMeta = z.infer<typeof qaRunMetaSchema>
+export type QaIngestMeta = z.infer<typeof qaIngestMetaSchema>
+
+export type CoverageGranularity = 'section' | 'module'
 
 export type QaProject = {
   id: string
@@ -145,33 +180,10 @@ export type QaReport = {
   source_filename: string | null
   source_checksum: string | null
   uploaded_by: string | null
+  run_meta: RunMeta | null
+  coverage_granularity: CoverageGranularity
   created_at: string
   updated_at: string
-}
-
-export type ExecutionGroup = {
-  name: string
-  count: number
-  files?: number
-  tagged_files?: number
-  static?: number
-  note?: string
-}
-
-export type RecentProgress = {
-  period_days: number
-  items: { text: string; badge?: string }[]
-}
-
-export type AttentionItem = {
-  text: string
-  badge?: string
-}
-
-export type CiCd = {
-  pipelines: string[]
-  stack?: string
-  wip_note?: string
 }
 
 export type QaReportModule = {
@@ -212,7 +224,6 @@ export type QaReportHistoryItem = {
   active_scope: number
 }
 
-// Props type for the shared report view
 export type QaReportViewProps = {
   project: { name: string }
   report: QaReport
@@ -221,4 +232,5 @@ export type QaReportViewProps = {
   remainingSections: { section: string; done: number; left: number }[]
   history?: QaReportHistoryItem[]
   showHistory?: boolean
+  coverageGranularity?: CoverageGranularity
 }
