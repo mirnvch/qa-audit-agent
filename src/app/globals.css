@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@plugin "@tailwindcss/typography";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -128,4 +130,52 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ──────────────────────────────────────────────────────────
+   Learn / MDX styles
+   Stable selectors for rehype-pretty-code (VS Code theme)
+   ────────────────────────────────────────────────────────── */
+.learn-prose pre[data-theme],
+.learn-prose code[data-theme] {
+  background-color: var(--shiki-light-bg, #f6f8fa);
+  color: var(--shiki-light, #24292f);
+}
+.dark .learn-prose pre[data-theme],
+.dark .learn-prose code[data-theme] {
+  background-color: var(--shiki-dark-bg, oklch(0.195 0.022 255));
+  color: var(--shiki-dark, oklch(0.93 0.01 255));
+}
+.dark .learn-prose pre[data-theme] span,
+.dark .learn-prose code[data-theme] span {
+  color: var(--shiki-dark);
+}
+.learn-prose pre {
+  @apply rounded-lg border border-border/60 p-4 overflow-x-auto text-sm leading-relaxed;
+}
+.learn-prose pre code {
+  @apply grid; /* line numbers + highlighting */
+}
+.learn-prose code[data-line-numbers] {
+  counter-reset: line;
+}
+.learn-prose code[data-line-numbers] > [data-line]::before {
+  counter-increment: line;
+  content: counter(line);
+  @apply inline-block w-6 mr-4 text-right text-muted-foreground/50;
+}
+.learn-prose [data-line] {
+  @apply px-2;
+}
+.learn-prose [data-highlighted-line] {
+  @apply bg-primary/10 border-l-2 border-primary;
+}
+.learn-prose :not(pre) > code {
+  @apply rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[0.85em] font-mono;
+}
+.learn-prose [data-rehype-pretty-code-figure] [data-rehype-pretty-code-title] {
+  @apply rounded-t-lg border border-b-0 border-border/60 bg-muted/30 px-4 py-2 text-xs font-mono text-muted-foreground;
+}
+.learn-prose [data-rehype-pretty-code-figure] [data-rehype-pretty-code-title] + pre {
+  @apply rounded-t-none;
 }

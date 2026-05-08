@@ -151,6 +151,25 @@ export type UserRoleEntry = {
   created_at: string
 }
 
+// ─── Diagrams ─────────────────────────────────────────────────────────────
+// Excalidraw-диаграммы для встраивания в MDX-уроки.
+// excalidraw_data — это содержимое .excalidraw файла как jsonb (нормально typed
+// — `unknown`, конкретные поля проверяются на стороне приложения).
+export type Diagram = {
+  id: string
+  slug: string
+  title: string
+  description: string | null
+  tags: string[]
+  excalidraw_data: unknown
+  svg_light: string | null
+  svg_dark: string | null
+  used_in_lessons: string[]
+  created_at: string
+  updated_at: string
+  created_by: string | null
+}
+
 // Re-export QA types
 export type {
   QaProject,
@@ -277,6 +296,18 @@ export type Database = {
         Row: UserRoleEntry
         Insert: Omit<UserRoleEntry, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<UserRoleEntry, 'id'>>
+        Relationships: []
+      }
+      diagrams: {
+        Row: Diagram
+        Insert: Omit<Diagram, 'id' | 'created_at' | 'updated_at' | 'tags' | 'used_in_lessons'> & {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          tags?: string[]
+          used_in_lessons?: string[]
+        }
+        Update: Partial<Omit<Diagram, 'id' | 'created_at'>>
         Relationships: []
       }
     }

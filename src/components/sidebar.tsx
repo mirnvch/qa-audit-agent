@@ -12,10 +12,23 @@ import {
   Workflow,
   Settings,
   FlaskConical,
+  GraduationCap,
+  Shapes,
 } from 'lucide-react'
 import { NewScanDialog } from '@/components/new-scan-dialog'
 
-const navItems = [
+type NavItem = {
+  href: string
+  label: string
+  icon: typeof LayoutDashboard
+  enabled: boolean
+  /** Если true — перед пунктом отрисовывается визуальный разделитель. */
+  separatorBefore?: boolean
+  /** Если true — пункт визуально вложен под предыдущий (suborder). */
+  indent?: boolean
+}
+
+const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, enabled: true },
   { href: '/analytics', label: 'Analytics', icon: BarChart3, enabled: true },
   { href: '/reports', label: 'Reports', icon: FileText, enabled: true },
@@ -24,6 +37,8 @@ const navItems = [
   { href: '/templates', label: 'Email Templates', icon: Grid3X3, enabled: true },
   { href: '/sequences', label: 'Sequences', icon: Workflow, enabled: true },
   { href: '/qa-reports', label: 'QA Reports', icon: FlaskConical, enabled: true },
+  { href: '/learn', label: 'Обучение', icon: GraduationCap, enabled: true, separatorBefore: true },
+  { href: '/learn/diagrams', label: 'Диаграммы', icon: Shapes, enabled: true, indent: true },
   { href: '/settings', label: 'Settings', icon: Settings, enabled: true },
 ]
 
@@ -51,26 +66,32 @@ export function Sidebar({ stats }: { stats: QuickStats }) {
         </p>
         <nav className="space-y-1">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+            // Активным считаем самый «специфичный» совпавший пункт меню,
+            // чтобы при /learn/diagrams не подсвечивался одновременно /learn.
+            const matches =
+              pathname === item.href || pathname.startsWith(item.href + '/')
+            const moreSpecific = navItems.some(
+              other =>
+                other.href !== item.href &&
+                other.href.startsWith(item.href + '/') &&
+                (pathname === other.href || pathname.startsWith(other.href + '/')),
+            )
+            const isActive = matches && !moreSpecific
             const Icon = item.icon
 
-            if (!item.enabled) {
-              return (
-                <div
-                  key={item.href}
-                  className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground/40 cursor-not-allowed"
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </div>
-              )
-            }
-
-            return (
+            const link = !item.enabled ? (
+              <div
+                key={item.href}
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground/40 cursor-not-allowed ${item.indent ? 'ml-4' : ''}`}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </div>
+            ) : (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${item.indent ? 'ml-4' : ''} ${
                   isActive
                     ? 'bg-muted/50 text-foreground font-medium'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
@@ -80,6 +101,16 @@ export function Sidebar({ stats }: { stats: QuickStats }) {
                 {item.label}
               </Link>
             )
+
+            if (item.separatorBefore) {
+              return (
+                <div key={item.href}>
+                  <div className="my-2 h-px bg-border/40" />
+                  {link}
+                </div>
+              )
+            }
+            return link
           })}
         </nav>
       </div>
