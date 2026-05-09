@@ -156,6 +156,17 @@
 .learn-prose pre code {
   @apply grid; /* line numbers + highlighting */
 }
+/* Plain code-блоки без language hint — rehype-pretty-code их не трогает,
+   а prose обнуляет цвет, рассчитывая на свой тёмный фон. Задаём
+   читаемые цвета руками для обеих тем. */
+.learn-prose pre:not([data-theme]) {
+  background-color: hsl(var(--muted) / 0.4);
+}
+.learn-prose pre:not([data-theme]),
+.learn-prose pre:not([data-theme]) code,
+.learn-prose pre:not([data-theme]) code span {
+  color: hsl(var(--foreground));
+}
 .learn-prose code[data-line-numbers] {
   counter-reset: line;
 }

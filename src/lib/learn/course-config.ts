@@ -106,7 +106,13 @@ export const COURSE_MODULES: Module[] = [
     description: 'Playwright, Vitest и вспомогательные библиотеки — что для чего, где границы между ними.',
     icon: 'Boxes',
     lessons: [
-      lesson('03-stack', '3.1', 'playwright-i-vitest', 'Playwright и Vitest бок о бок',     45, 'draft'),
+      lesson(
+        '03-stack', '3.1', 'playwright-i-vitest', 'Playwright и Vitest бок о бок', 45, 'published',
+        {
+          mainIdea:
+            'Один проект — два раннера, разделённые по расширению: .spec.ts для Playwright, .test.ts для Vitest. Это не каприз, а архитектурное решение: каждый раннер заточен под свой класс задач. Vitest — для чистой логики (быстро, без браузера). Playwright — для browser end-to-end (с настоящим Chromium). Один — не заменяет другого.',
+        },
+      ),
       lesson('03-stack', '3.2', 'vspomogatelnye-liby', 'Зачем нужны вспомогательные либы',  50, 'draft'),
       lesson('03-stack', '3.3', 'kastomnye-moduli',    'Кастомные внутренние модули',       50, 'draft'),
     ],
