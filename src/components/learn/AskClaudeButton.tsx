@@ -11,6 +11,7 @@
 import { Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { renderInlineMarkdown } from '@/lib/learn/inline-markdown'
 
 type Props = {
   /** Опц. подсказка-промпт, который потом полетит в API. */
@@ -38,7 +39,7 @@ export function AskClaudeButton({ context, hint, label = 'Спросить Claud
       {hint && (
         <div className="flex-1 text-sm leading-relaxed text-muted-foreground">
           <span className="mr-1.5 text-base">🤔</span>
-          {hint}
+          {renderInlineMarkdown(hint)}
         </div>
       )}
       <button

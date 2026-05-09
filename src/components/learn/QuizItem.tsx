@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { Check, X, ChevronDown, Circle, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { renderInlineMarkdown } from '@/lib/learn/inline-markdown'
 
 type Props = {
   index: number
@@ -27,7 +28,7 @@ export function QuizItem({ index, question, options, correct, explanation }: Pro
     <li className="space-y-3">
       <div className="text-sm font-medium">
         <span className="font-mono text-muted-foreground mr-2">Q{index}.</span>
-        {question}
+        {renderInlineMarkdown(question)}
       </div>
 
       <div className="space-y-2">
@@ -64,7 +65,7 @@ export function QuizItem({ index, question, options, correct, explanation }: Pro
                  isPicked ? <CheckCircle2 className="h-3 w-3" /> :
                  letter}
               </span>
-              <span className="leading-relaxed">{opt}</span>
+              <span className="leading-relaxed">{renderInlineMarkdown(opt)}</span>
             </button>
           )
         })}
@@ -108,11 +109,13 @@ export function QuizItem({ index, question, options, correct, explanation }: Pro
       </div>
 
       {revealed && showExplanation && explanation && (
-        <div className="rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+        <div className="rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground space-y-2">
           <div className="mb-1 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">
             <Circle className="h-2 w-2 fill-current" /> Разбор
           </div>
-          {explanation}
+          {explanation.split('\n').filter(Boolean).map((para, i) => (
+            <p key={i}>{renderInlineMarkdown(para)}</p>
+          ))}
         </div>
       )}
     </li>

@@ -29,6 +29,8 @@ export const lessonsRegistry: Record<string, LessonImporter> = {
     () => import('@content/lessons/01-architecture-basics/1.1-problema-bolshogo-koda.mdx'),
   '01-architecture-basics/1.2-sloi-svyazannost-svyaznost':
     () => import('@content/lessons/01-architecture-basics/1.2-sloi-svyazannost-svyaznost.mdx'),
+  '01-architecture-basics/1.3-arkhitektura-v-qa-proekte':
+    () => import('@content/lessons/01-architecture-basics/1.3-arkhitektura-v-qa-proekte.mdx'),
 }
 
 /** Получить importer урока по mdxPath из course-config (с .mdx или без — нормализуется). */

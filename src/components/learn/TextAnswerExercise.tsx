@@ -13,6 +13,7 @@ import { Send, RotateCcw, BookOpen } from 'lucide-react'
 import { saveExerciseAnswer, getExerciseAnswer } from '@/lib/learn/progress'
 import { useLessonId } from './LessonProvider'
 import { cn } from '@/lib/utils'
+import { renderInlineMarkdown } from '@/lib/learn/inline-markdown'
 
 type Props = {
   /** id задания внутри урока (на случай нескольких) */
@@ -64,7 +65,11 @@ export function TextAnswerExercise({ exerciseId, prompt, hint, placeholder, solu
           <div className="text-[10px] font-mono tracking-[0.2em] uppercase text-muted-foreground/70 mb-1">
             Задание
           </div>
-          <p className="text-sm leading-relaxed">{prompt}</p>
+          <div className="text-sm leading-relaxed space-y-2">
+            {prompt.split(/\n\n+/).map((para, i) => (
+              <p key={i} className="whitespace-pre-wrap">{renderInlineMarkdown(para)}</p>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -81,7 +86,7 @@ export function TextAnswerExercise({ exerciseId, prompt, hint, placeholder, solu
             )}
           />
           {hint && (
-            <p className="text-xs text-muted-foreground/70 italic">💡 {hint}</p>
+            <p className="text-xs text-muted-foreground/70 italic">💡 {renderInlineMarkdown(hint)}</p>
           )}
           <div className="flex justify-end">
             <button

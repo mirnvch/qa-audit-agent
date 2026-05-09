@@ -6,6 +6,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { renderInlineMarkdown } from '@/lib/learn/inline-markdown'
 
 export type GlossaryTerm = {
   term: string
@@ -21,8 +22,8 @@ export function Glossary({ terms }: { terms: GlossaryTerm[] }) {
       <dl className="space-y-3">
         {terms.map(t => (
           <div key={t.term} className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1">
-            <dt className="font-mono text-sm font-medium text-foreground">{t.term}</dt>
-            <dd className="text-sm leading-relaxed text-muted-foreground">{t.definition}</dd>
+            <dt className="font-mono text-sm font-medium text-foreground">{renderInlineMarkdown(t.term)}</dt>
+            <dd className="text-sm leading-relaxed text-muted-foreground">{renderInlineMarkdown(t.definition)}</dd>
           </div>
         ))}
       </dl>
@@ -56,7 +57,7 @@ export function GlossaryTooltip({ term, definition }: GlossaryTerm) {
           open ? 'opacity-100' : 'opacity-0',
         )}
       >
-        <strong className="font-mono">{term}</strong> — {definition}
+        <strong className="font-mono">{term}</strong> — {renderInlineMarkdown(definition)}
       </span>
     </span>
   )

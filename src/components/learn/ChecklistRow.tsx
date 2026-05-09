@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
 import { getChecklistState, saveChecklistState } from '@/lib/learn/progress'
 import { cn } from '@/lib/utils'
+import { renderInlineMarkdown } from '@/lib/learn/inline-markdown'
 
 const ROW_EVENT = 'nexus-course:checklist-row-changed'
 
@@ -74,7 +75,7 @@ export function ChecklistRow({ lessonId, checklistId, index, totalCount, text }:
         'leading-relaxed transition-colors',
         hydrated && checked && 'text-muted-foreground line-through',
       )}>
-        {text}
+        {renderInlineMarkdown(text)}
       </span>
     </button>
   )
