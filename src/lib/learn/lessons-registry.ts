@@ -27,9 +27,8 @@ type LessonImporter = () => Promise<MdxModule>
 export const lessonsRegistry: Record<string, LessonImporter> = {
   '01-architecture-basics/1.1-problema-bolshogo-koda':
     () => import('@content/lessons/01-architecture-basics/1.1-problema-bolshogo-koda.mdx'),
-  // ─── при добавлении новых уроков добавляй сюда: ──────────────────────────
-  // '01-architecture-basics/1.2-sloi-svyazannost-svyaznost':
-  //   () => import('@content/lessons/01-architecture-basics/1.2-sloi-svyazannost-svyaznost.mdx'),
+  '01-architecture-basics/1.2-sloi-svyazannost-svyaznost':
+    () => import('@content/lessons/01-architecture-basics/1.2-sloi-svyazannost-svyaznost.mdx'),
 }
 
 /** Получить importer урока по mdxPath из course-config (с .mdx или без — нормализуется). */

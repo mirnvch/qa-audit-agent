@@ -11,6 +11,7 @@
     "diagram:update": "tsx scripts/diagrams/update-diagram.ts",
     "diagram:delete": "tsx scripts/diagrams/delete-diagram.ts",
     "diagram:list": "tsx scripts/diagrams/list-diagrams.ts",
+    "diagram:list-library": "tsx scripts/diagrams/list-library-elements.ts",
     "diagram:rebuild-renderer": "esbuild scripts/diagrams/lib/bundle-entry.mjs --bundle --format=iife --platform=browser --define:process.env.NODE_ENV='\"production\"' --define:process.env.IS_PREACT='\"false\"' --outfile=../.claude/skills/excalidraw-diagram/references/excalidraw-bundle.js"
   },
   "dependencies": {
