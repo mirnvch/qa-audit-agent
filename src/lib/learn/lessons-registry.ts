@@ -31,6 +31,8 @@ export const lessonsRegistry: Record<string, LessonImporter> = {
     () => import('@content/lessons/01-architecture-basics/1.2-sloi-svyazannost-svyaznost.mdx'),
   '01-architecture-basics/1.3-arkhitektura-v-qa-proekte':
     () => import('@content/lessons/01-architecture-basics/1.3-arkhitektura-v-qa-proekte.mdx'),
+  '02-meet-nexus/2.1-chto-my-testiruem':
+    () => import('@content/lessons/02-meet-nexus/2.1-chto-my-testiruem.mdx'),
 }
 
 /** Получить importer урока по mdxPath из course-config (с .mdx или без — нормализуется). */
