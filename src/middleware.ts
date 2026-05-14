@@ -19,6 +19,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/api/v1/') ||
     pathname.startsWith('/api/public/') ||
+    pathname.startsWith('/api/cron/') ||
     pathname === '/api/verify-code' ||
     pathname.startsWith('/qa/')
   ) {
