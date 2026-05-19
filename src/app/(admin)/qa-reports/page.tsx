@@ -1,3 +1,5 @@
+import Link from 'next/link'
+import { Activity } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { requireQaAccess } from '@/lib/auth/require-qa-access'
 import { QaProjectCard } from '@/components/qa/qa-project-card'
@@ -68,7 +70,16 @@ export default async function QaReportsPage() {
           </p>
           <h1 className="text-3xl font-bold tracking-tight">QA Reports</h1>
         </div>
-        <QaUploadDialog />
+        <div className="flex items-center gap-3">
+          <Link
+            href="/qa-reports/runs"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Activity className="h-3.5 w-3.5" />
+            Test runs
+          </Link>
+          <QaUploadDialog />
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
