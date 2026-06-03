@@ -113,8 +113,20 @@ export const COURSE_MODULES: Module[] = [
             'Один проект — два раннера, разделённые по расширению: .spec.ts для Playwright, .test.ts для Vitest. Это не каприз, а архитектурное решение: каждый раннер заточен под свой класс задач. Vitest — для чистой логики (быстро, без браузера). Playwright — для browser end-to-end (с настоящим Chromium). Один — не заменяет другого.',
         },
       ),
-      lesson('03-stack', '3.2', 'vspomogatelnye-liby', 'Зачем нужны вспомогательные либы',  50, 'draft'),
-      lesson('03-stack', '3.3', 'kastomnye-moduli',    'Кастомные внутренние модули',       50, 'draft'),
+      lesson(
+        '03-stack', '3.2', 'vspomogatelnye-liby', 'Зачем нужны вспомогательные либы', 50, 'published',
+        {
+          mainIdea:
+            'Раннер тестов решает 20% задач. Остальные 80% — это качество логов, генерация данных, фабрики, проверка контрактов API, защита кода до commit, обход анти-бот защиты при логине. Шесть вспомогательных либ — Pino, Faker, Fishery, AJV, Lefthook, stealth — каждая закрывает одну дырку. Без них можно писать тесты, но это будет медленно, шумно и хрупко.',
+        },
+      ),
+      lesson(
+        '03-stack', '3.3', 'kastomnye-moduli', 'Кастомные внутренние модули', 55, 'published',
+        {
+          mainIdea:
+            'Зрелая команда не пользуется одним только Playwright и стандартными либами. Поверх них она строит свой собственный слой кастомных модулей: ConfigurationManager (типизированное окружение), AppPage (Page Object с автологами), GraphQLClient (фасад над API), seededAssetRepo (safety-net cleanup), withContext (контекст в ассертах), TestFailureReport (структурированный отчёт). Без этого слоя проект — «голый Playwright», и он не масштабируется дальше пары сотен тестов.',
+        },
+      ),
     ],
   },
   {
@@ -124,8 +136,20 @@ export const COURSE_MODULES: Module[] = [
     description: 'Как проект устроен на диске и почему репозиторий — это архитектурная граница.',
     icon: 'FolderTree',
     lessons: [
-      lesson('04-project-structure', '4.1', 'derevo-proekta',     'Дерево проекта',     40, 'draft'),
-      lesson('04-project-structure', '4.2', 'bitbucket-boundary', 'Bitbucket boundary', 35, 'draft'),
+      lesson(
+        '04-project-structure', '4.1', 'derevo-proekta', 'Дерево проекта', 50, 'published',
+        {
+          mainIdea:
+            'Структура папок — это не каприз, а карта мышления команды. Хорошее дерево проекта говорит само за себя: видишь папку — понимаешь, что внутри и зачем. Плохое — заставляет искать «а где же тесты на логин» по всему репозиторию, открывая файл за файлом наугад.',
+        },
+      ),
+      lesson(
+        '04-project-structure', '4.2', 'bitbucket-boundary', 'Bitbucket boundary', 55, 'published',
+        {
+          mainIdea:
+            'Не всё, что лежит в папке проекта, должно ехать в общий репозиторий. Есть осознанная граница: runtime-код (тесты, страницы, конфиги) — версионируется и едет всем. Вспомогательное (локальные заметки, эксперименты, артефакты, секреты) — остаётся на твоей машине. Эта граница защищает и репозиторий от мусора, и команду от утечек.',
+        },
+      ),
     ],
   },
   {
@@ -135,8 +159,20 @@ export const COURSE_MODULES: Module[] = [
     description: 'ConfigurationManager как singleton, окружения, overrides. Откуда тест узнаёт, куда ему стучаться.',
     icon: 'Settings2',
     lessons: [
-      lesson('05-configuration', '5.1', 'configuration-manager',   'ConfigurationManager как singleton', 50, 'draft'),
-      lesson('05-configuration', '5.2', 'okruzheniya-i-overrides', 'Окружения и overrides',              45, 'draft'),
+      lesson(
+        '05-configuration', '5.1', 'configuration-manager', 'ConfigurationManager как singleton', 60, 'published',
+        {
+          mainIdea:
+            'Настройки приложения — это не то, что хватают откуда попало. Зрелый проект имеет одну точку правды о конфигурации: типизированный объект, через который проходят все обращения к окружению. Это singleton — он создаётся один раз и живёт на весь прогон. Опечатки в именах переменных ловятся компилятором, а не падающим в проде тестом.',
+        },
+      ),
+      lesson(
+        '05-configuration', '5.2', 'okruzheniya-i-overrides', 'Окружения и overrides', 60, 'published',
+        {
+          mainIdea:
+            'Один и тот же тест должен работать в local, staging и prod — без единого изменения кода. Окружение выбирается снаружи, через переменную, а не зашивается внутрь. Это даёт гибкость: запустил локально для дебага, тот же тест прогнал на staging в CI, и при необходимости — точечно переопределил отдельную настройку через override.',
+        },
+      ),
     ],
   },
   {
@@ -146,8 +182,20 @@ export const COURSE_MODULES: Module[] = [
     description: 'global-setup, авторизация, seededAssetRepo. Как тесты получают пользователя и подготовленные данные.',
     icon: 'KeyRound',
     lessons: [
-      lesson('06-setup-auth', '6.1', 'global-setup',      'global-setup',      45, 'draft'),
-      lesson('06-setup-auth', '6.2', 'seeded-asset-repo', 'seededAssetRepo',   50, 'draft'),
+      lesson(
+        '06-setup-auth', '6.1', 'global-setup', 'global-setup', 60, 'published',
+        {
+          mainIdea:
+            'Некоторые вещи нужно сделать один раз перед всеми тестами, а не в каждом тесте отдельно. Логин — главный пример: авторизоваться 200 раз перед 200 тестами — это десятки минут впустую. global-setup логинится один раз, сохраняет сессию в файл, и все тесты стартуют уже залогиненными. Это разница между прогоном в 50 минут и в 10.',
+        },
+      ),
+      lesson(
+        '06-setup-auth', '6.2', 'seeded-asset-repo', 'seededAssetRepo', 60, 'published',
+        {
+          mainIdea:
+            'Тесты создают данные — и обязаны за собой убирать. Если каждый тест оставляет мусор, через месяц база полна тысяч «test user 4471». seededAssetRepo — это реестр: записал, что создал, и safety-net гарантирует уборку в конце, даже если тест упал на середине. Чистая база после прогона — признак зрелого тест-сьюта.',
+        },
+      ),
     ],
   },
   {

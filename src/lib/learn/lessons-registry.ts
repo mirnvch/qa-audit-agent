@@ -37,6 +37,18 @@ export const lessonsRegistry: Record<string, LessonImporter> = {
     () => import('@content/lessons/02-meet-nexus/2.2-vidy-testov-i-piramida.mdx'),
   '03-stack/3.1-playwright-i-vitest':
     () => import('@content/lessons/03-stack/3.1-playwright-i-vitest.mdx'),
+  '04-project-structure/4.1-derevo-proekta':
+    () => import('@content/lessons/04-project-structure/4.1-derevo-proekta.mdx'),
+  '04-project-structure/4.2-bitbucket-boundary':
+    () => import('@content/lessons/04-project-structure/4.2-bitbucket-boundary.mdx'),
+  '05-configuration/5.1-configuration-manager':
+    () => import('@content/lessons/05-configuration/5.1-configuration-manager.mdx'),
+  '05-configuration/5.2-okruzheniya-i-overrides':
+    () => import('@content/lessons/05-configuration/5.2-okruzheniya-i-overrides.mdx'),
+  '06-setup-auth/6.1-global-setup':
+    () => import('@content/lessons/06-setup-auth/6.1-global-setup.mdx'),
+  '06-setup-auth/6.2-seeded-asset-repo':
+    () => import('@content/lessons/06-setup-auth/6.2-seeded-asset-repo.mdx'),
 }
 
 /** Получить importer урока по mdxPath из course-config (с .mdx или без — нормализуется). */

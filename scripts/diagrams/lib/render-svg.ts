@@ -43,6 +43,8 @@ const DARK_COLOR_MAPPING: Record<string, string> = {
   '#64748b': '#94a3b8', // slate-500 → slate-400
   '#1e3a8a': '#bfdbfe', // blue-900 → blue-200 (slate-blue subtitle)
   '#94a3b8': '#64748b', // slate-400 → slate-500 (структурные линии)
+  '#b91c1c': '#fca5a5', // red-700 → red-300 (alarm-подписи/текст поверх canvas)
+  '#065f46': '#6ee7b7', // green-800 → green-300 (success-подписи/текст поверх canvas)
 }
 
 type ExcalidrawElement = {
