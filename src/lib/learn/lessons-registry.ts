@@ -37,6 +37,10 @@ export const lessonsRegistry: Record<string, LessonImporter> = {
     () => import('@content/lessons/02-meet-nexus/2.2-vidy-testov-i-piramida.mdx'),
   '03-stack/3.1-playwright-i-vitest':
     () => import('@content/lessons/03-stack/3.1-playwright-i-vitest.mdx'),
+  '03-stack/3.2-vspomogatelnye-liby':
+    () => import('@content/lessons/03-stack/3.2-vspomogatelnye-liby.mdx'),
+  '03-stack/3.3-kastomnye-moduli':
+    () => import('@content/lessons/03-stack/3.3-kastomnye-moduli.mdx'),
   '04-project-structure/4.1-derevo-proekta':
     () => import('@content/lessons/04-project-structure/4.1-derevo-proekta.mdx'),
   '04-project-structure/4.2-bitbucket-boundary':
