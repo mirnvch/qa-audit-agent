@@ -132,8 +132,8 @@ const timeout = process.env.TIMEOUT;                    // строка, не ч
 
 ```typescript
 // Вместо process.env повсюду —
-const baseUrl = configManager.getBaseUrl();   // string, валидный, один источник
-const timeout = configManager.getTimeout();   // number, с дефолтом
+const baseUrl = configManager.getBaseUrl();             // string, валидный, один источник
+const orgId = configManager.getOrganizationId();         // string, тот же принцип
 ```
 
 Теперь **вся** правда о настройках — в **одном** классе. Опечатка `getBaseUrl` вместо `getBseUrl`? Её поймает **компилятор** — такого метода просто нет, код не соберётся. Переменная не задана? Узнаешь **при старте**, а не на третьем шаге. Один источник, один ответ, как ресепшен.
@@ -367,255 +367,180 @@ export const configManager = new ConfigurationManager();
 
 ## Часть 4. Типизированный доступ к окружению
 
-Singleton — это **каркас** (один экземпляр). Но сам по себе он ещё не приносит пользы. Польза — в том, **как** этот единственный объект **отдаёт** настройки. Разберём «начинку» `ConfigurationManager` — геттеры и безопасное чтение `process.env`.
+Singleton — это **каркас** (один экземпляр). Но сам по себе он ещё не приносит пользы. Польза — в том, **как** этот единственный объект **отдаёт** настройки. Разберём «начинку» реального `config/ConfigurationManager.ts` — методы-геттеры и то, где на самом деле происходит валидация.
 
-### Геттеры — вежливые двери к настройкам
+### Геттеры — вежливые двери к настройкам, но **методы**, не свойства
 
-Вместо того чтобы тесты лезли в `process.env` напрямую, `ConfigurationManager` даёт **геттеры** — методы, которые **отдают** настройку в нужном виде.
+Вместо того чтобы тесты лезли в `process.env` напрямую, `ConfigurationManager` даёт **методы**, которые **отдают** настройку в нужном виде:
 
 ```typescript
-get baseUrl(): string {
-  return this.getRequired('BASE_URL');
-}
+configManager.getBaseUrl();         // 'https://nexus.dev.tltgrp.com'
+configManager.getOrganizationId();  // Keycloak tenant ID
+configManager.getEnvironment();     // 'local' | 'dev' | 'stg'
+```
 
-get timeout(): number {
-  return Number(this.getOptional('TIMEOUT', '30000'));
+Заметь: это **методы** с круглыми скобками (`getBaseUrl()`), а не «геттеры-свойства» (`.baseUrl` без скобок) — некоторые языки и библиотеки умеют и так, но конкретно этот класс выбрал обычные методы. Разница чисто синтаксическая, идея та же: «спроси один раз в одном месте, получи типизированный ответ».
+
+#### Метод `getBaseUrl`
+
+```typescript
+getBaseUrl(): string {
+  return this.config.baseUrl;
 }
 ```
 
-Разберём построчно.
+- **`getBaseUrl(): string`** — метод, **гарантирующий**, что вернёт `string`. Не `string | undefined` — именно `string`. Тот, кто вызвал `configManager.getBaseUrl()`, может **не проверять** на `undefined`.
+- **`return this.config.baseUrl;`** — а вот и главная неожиданность для того, кто ждал `process.env` внутри: тут **нет** обращения к `process.env` вообще! `this.config` — это уже готовый, полностью собранный объект конкретного окружения (подробнее — через абзац).
 
-#### Геттер `baseUrl`
+#### А где тогда валидация, если не в геттере?
+
+Вот ключевая идея, ради которой стоит перечитать этот раздел дважды. Валидация происходит **не** «при каждом чтении отдельного поля», а **в двух более ранних точках**:
+
+**Точка 1 — компилятор, ещё до запуска.** Все настройки каждого окружения хранятся не по одной переменной, а **целиком, одним объектом**, в файле `config/environments.ts`:
 
 ```typescript
-get baseUrl(): string {
-  return this.getRequired('BASE_URL');
-}
+export const environments: Record<Environment, EnvironmentConfig> = {
+  local: { baseUrl: '...', ssoBaseUrl: '...', organizationId: '...', /* ... */ },
+  dev:   { baseUrl: '...', ssoBaseUrl: '...', organizationId: '...', /* ... */ },
+  stg:   { baseUrl: '...', ssoBaseUrl: '...', organizationId: '...', /* ... */ },
+};
 ```
 
-- **`get`** — особое слово. Оно превращает метод в **геттер** — его зовут **как поле**, без скобок: `config.baseUrl`, а не `config.baseUrl()`. Снаружи выглядит как обычное свойство, но **внутри** выполняется код.
-- **`baseUrl`** — имя геттера.
-- **`: string`** — **тип** возвращаемого значения. Этот геттер **гарантирует**, что вернёт `string`. Не `string | undefined`, а именно `string`. Это сильная гарантия — тот, кто вызвал `config.baseUrl`, может **не проверять** на `undefined`.
-- **`return this.getRequired('BASE_URL');`** — внутри зовём приватный помощник `getRequired` (разберём ниже), передаём ему **имя** переменной. `this` — «текущий объект», то есть наш единственный `ConfigurationManager`.
+Каждый объект (`local`, `dev`, `stg`) обязан соответствовать интерфейсу `EnvironmentConfig` — если кто-то забудет поле `baseUrl` в `stg`, **компилятор откажется собирать проект**. Это fail fast, только он срабатывает **раньше**, чем ты успел запустить хоть один тест — прямо на этапе `tsc`/сборки. `getBaseUrl()` просто **читает готовое** поле из уже проверенного объекта — валидировать при чтении уже нечего, всё провалидировано заранее.
 
-Перевод: «Когда кто-то спросит `config.baseUrl` — прочитай **обязательную** переменную `BASE_URL` и верни как строку».
-
-#### Геттер `timeout`
+**Точка 2 — выбор ОКРУЖЕНИЯ при старте.** Единственное, что реально может быть «неправильным» в рантайме — это САМО имя окружения:
 
 ```typescript
-get timeout(): number {
-  return Number(this.getOptional('TIMEOUT', '30000'));
-}
-```
-
-- **`get timeout(): number`** — геттер, который возвращает **число** (`number`), а не строку. Важно: тесту нужен тайм-аут как **число**, и геттер **сам** об этом позаботится.
-- **`this.getOptional('TIMEOUT', '30000')`** — зовём помощник `getOptional` с **двумя** аргументами: имя переменной (`'TIMEOUT'`) и **дефолт** (`'30000'`). Если переменной нет — вернётся дефолт. Заметь: дефолт прописан **в одном месте**, для всех (помнишь Проблему 4 из Части 2?).
-- **`Number(...)`** — а вот это — **преобразование типа** (по-английски *type coercion*). `getOptional` вернёт **строку** (`'30000'` или то, что в env). А `Number(...)` превращает строку в **число** (`30000`). Геттер обещал вернуть `number` — и держит обещание.
-
-Перевод: «Когда спросят `config.timeout` — прочитай **необязательную** `TIMEOUT` (если нет — возьми `'30000'`), **преврати в число** и верни».
-
-### Помощники `getRequired` и `getOptional` — сердце валидации
-
-Геттеры красивые, но вся **защита** — внутри двух приватных помощников. Вот `getRequired`:
-
-```typescript
-private getRequired(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(`Missing required env variable: ${key}`);
+export function resolveEnvironment(rawEnv: string | undefined): Environment {
+  const value = (rawEnv ?? 'dev').toLowerCase();
+  if (!isValidEnvironment(value)) {
+    throw new Error(
+      `Unsupported ENV "${rawEnv}". Supported values: ${VALID_ENVIRONMENTS.join(', ')}.`,
+    );
   }
   return value;
 }
 ```
 
-Построчно.
+- Если `ENV` не задан вовсе — по умолчанию берётся **`'dev'`** (не `'local'` — дефолт выбран так, чтобы случайный запуск без `ENV` не улетел в чужое незнакомое окружение по недосмотру, но и не требовал явного выбора для самого частого случая).
+- Если `ENV` задан, но это не `local`/`dev`/`stg` (например, опечатка `stagging` или несуществующий `prod`) — **сразу бросается ошибка** с понятным списком поддерживаемых значений. Вот это и есть настоящий runtime fail fast в этом классе: не «поле потерялось», а «ты просишь окружение, которого не существует».
 
-- **`private getRequired(key: string): string`** — **приватный** метод (только изнутри класса). Принимает `key` — **имя** переменной (строку). Возвращает `string`.
-- **`const value = process.env[key];`** — вот тут, и **только тут**, во всём проекте мы лезем в `process.env`. `process.env[key]` — взять переменную по имени. Результат — `string | undefined` (может быть, а может и нет).
-- **`if (!value)`** — «если значения **нет**» (пусто, `undefined`, пустая строка). Знак `!` — «нет/не».
-- **`throw new Error(...)`** — и вот **ключевой момент**. Если переменной нет, мы **бросаем ошибку** с **понятным** сообщением: `Missing required env variable: BASE_URL`. Не молчим, не возвращаем `undefined` — **громко падаем** прямо здесь.
-- **`return value;`** — если значение есть, возвращаем его (теперь TypeScript знает, что это точно `string`, не `undefined` — мы же проверили выше).
+Тонкость: `getMemberId(): string | undefined` — **честно** возвращает `string | undefined`, а не гарантированный `string`. Не в каждом окружении секрет `MEMBER_ID_{ENV}` обязательно задан в `.env` — и тип это **не скрывает**, а прямо показывает вызывающему коду: «а вот это поле правда может отсутствовать, проверь перед использованием».
 
-#### Это и есть fail fast
+### Overrides — единственное место, где реально читается `process.env` в рантайме
 
-То, что делает `getRequired` — это паттерн **fail fast** (по-русски «упасть быстро»). Идея: если что-то не так — **падай немедленно**, в момент, **ближайший** к причине, с **понятным** сообщением. Не тащи поломку дальше по коду.
-
-Сравни два мира:
-- **Без fail fast** (`process.env.BASE_URL` напрямую): переменной нет → `undefined` едет дальше → тест падает на третьем шаге с «не удалось открыть `undefined/login`». Ты ищешь причину **двадцать минут**.
-- **С fail fast** (`getRequired`): переменной нет → падаем **при старте** с `Missing required env variable: BASE_URL`. Ты читаешь сообщение и за **тридцать секунд** понимаешь: «а, окружение не настроено, надо задать `BASE_URL`».
-
-Разница — между «детектив на полдня» и «прочитал и починил».
-
-#### А `getOptional` — мягче
+Не всё зашито в статический объект окружения. Два параметра можно **переопределить** прямо в момент запуска — headless-режим и замедление:
 
 ```typescript
-private getOptional(key: string, fallback: string): string {
-  const value = process.env[key];
-  return value ?? fallback;
+export function applyEnvOverrides(
+  config: EnvironmentConfig,
+  overrides: EnvOverrides,
+): EnvironmentConfig {
+  const next = { ...config, chromium: { use: { ...config.chromium.use } } };
+
+  if (overrides.HEADLESS !== undefined) {
+    next.chromium.use.headless = overrides.HEADLESS === 'true';
+  }
+  if (overrides.SLOW_MO !== undefined) {
+    const parsed = Number.parseInt(overrides.SLOW_MO, 10);
+    if (!Number.isNaN(parsed)) next.chromium.use.slowMo = parsed;
+  }
+  return next;
 }
 ```
 
-- Принимает **два** аргумента: `key` (имя) и `fallback` (**запасное** значение).
-- **`value ?? fallback`** — оператор `??` («**если слева пусто — возьми справа**»). Если `process.env[key]` задан — вернётся он. Если нет (`undefined`/`null`) — вернётся `fallback`.
+Заметь важную деталь: эта функция **не читает `process.env` сама** — она **принимает** уже прочитанные значения аргументом (`overrides`). Только вызывающий код (`getInstance()`) передаёт туда `process.env.HEADLESS`/`process.env.SLOW_MO`. Почему так неудобно на первый взгляд? Потому что **чистую** функцию (без обращения к глобальному `process.env` внутри) легко тестировать напрямую в Vitest — передал разные `overrides`, проверил результат, никакого мока `process.env` не нужно. Именно поэтому в реальном проекте `resolveEnvironment` и `applyEnvOverrides` экспортируются отдельно от класса — они **сами по себе unit-тестируемы**, а сам singleton (который реально трогает `process.env`) — нет (и не должен быть).
 
-Разница с `getRequired`: `getRequired` **падает**, если переменной нет (она **обязательна**). `getOptional` **не падает** — подставляет дефолт (переменная **необязательна**). Ты выбираешь помощник по тому, **критична** ли настройка: нет URL — работать нельзя (`getRequired`); нет тайм-аута — возьмём разумный дефолт (`getOptional`).
+### Соберём картину целиком
 
-### Соберём всё вместе
-
-Вот как `ConfigurationManager` выглядит **целиком** — singleton-каркас из Части 3 плюс типизированные геттеры из Части 4:
+Вот как всё складывается — singleton-каркас из Части 3 плюс реальная механика типизированного доступа:
 
 ```typescript
-class ConfigurationManager {
-  private static instance: ConfigurationManager;
+export class ConfigurationManager {
+  private static instance: ConfigurationManager | null = null;
+  private readonly env: Environment;
+  private readonly config: EnvironmentConfig;
 
-  // приватный конструктор — singleton
-  private constructor() {}
+  private constructor(env: Environment, overrides: EnvOverrides) {
+    this.env = env;
+    this.config = applyEnvOverrides(environments[env], overrides);
+  }
 
   static getInstance(): ConfigurationManager {
     if (!ConfigurationManager.instance) {
-      ConfigurationManager.instance = new ConfigurationManager();
+      const env = resolveEnvironment(process.env.ENV);   // может throw — Точка 2
+      ConfigurationManager.instance = new ConfigurationManager(env, {
+        HEADLESS: process.env.HEADLESS,
+        SLOW_MO: process.env.SLOW_MO,
+      });
     }
     return ConfigurationManager.instance;
   }
 
-  // --- публичные геттеры настроек ---
-
-  get baseUrl(): string {
-    return this.getRequired('BASE_URL');
-  }
-
-  get apiKey(): string {
-    return this.getRequired('API_KEY');
-  }
-
-  get timeout(): number {
-    return Number(this.getOptional('TIMEOUT', '30000'));
-  }
-
-  get headless(): boolean {
-    return this.getOptional('HEADLESS', 'true') === 'true';
-  }
-
-  // --- приватные помощники чтения env ---
-
-  private getRequired(key: string): string {
-    const value = process.env[key];
-    if (!value) {
-      throw new Error(`Missing required env variable: ${key}`);
-    }
-    return value;
-  }
-
-  private getOptional(key: string, fallback: string): string {
-    return process.env[key] ?? fallback;
-  }
+  getEnvironment(): Environment { return this.env; }
+  getBaseUrl(): string { return this.config.baseUrl; }
+  getOrganizationId(): string { return this.config.organizationId; }
+  getMemberId(): string | undefined { return this.config.memberId; }
+  // ...ещё несколько похожих геттеров-методов
 }
 
-// экспортируем единственный экземпляр для удобства
 export const configManager = ConfigurationManager.getInstance();
 ```
 
-Посмотри на этот класс целиком и оцени, что он даёт:
-- **`process.env` читается ровно в двух местах** — `getRequired` и `getOptional`. Больше **нигде** в проекте.
-- Каждый геттер **типизирован** — `baseUrl` это `string`, `timeout` это `number`, `headless` это `boolean`.
-- Обязательные настройки **валидируются** — нет `BASE_URL` → падение при старте.
-- Дефолты — **в одном месте** (`'30000'`, `'true'`).
-- Тесты зовут `configManager.baseUrl` — чисто, безопасно, **один источник**.
+Оцени, что это даёт:
+- **`process.env` читается ровно в одном месте** — внутри `getInstance()`, при первом обращении. Больше **нигде**.
+- Форма каждого окружения **проверена компилятором заранее** (`environments.ts` + интерфейс `EnvironmentConfig`) — не рантайм-валидация по требованию, а гарантия «на берегу».
+- Единственное, что может «упасть» в рантайме — **само имя окружения** (`resolveEnvironment`), и это происходит **один раз**, при самом первом обращении к singleton'у.
+- Оверрайды (`HEADLESS`/`SLOW_MO`) — отдельная **чистая** функция, легко тестируемая в изоляции.
+- Тесты зовут `configManager.getBaseUrl()` — чисто, безопасно, **один источник**.
 
-Заметь геттер `headless`:
+> ✅ **ТАК ЗАДУМАНО.** `ConfigurationManager` — это **граница** между «грязным» внешним миром (`process.env`, где всё `string | undefined`) и «чистым» кодом тестов (`getBaseUrl()` — гарантированный `string`). Но грязь убирается не «валидацией каждого поля при чтении», а **заранее** — типизированной формой окружений плюс однократной проверкой имени окружения. Вся грязь — внутри одного метода `getInstance()`. Наружу — только типизированные, готовые значения.
 
-```typescript
-get headless(): boolean {
-  return this.getOptional('HEADLESS', 'true') === 'true';
-}
-```
-
-Тут ещё одно преобразование типа: env-переменные **всегда строки**, а тесту нужен **boolean** (`true`/`false`). Сравнение `=== 'true'` превращает строку `'true'` в булево `true`, а **любое** другое значение — в `false`. Это типичный приём чтения «флагов» из окружения.
-
-> ✅ **ТАК ЗАДУМАНО.** `ConfigurationManager` — это **граница** между «грязным» внешним миром (`process.env`, где всё `string | undefined`) и «чистым» кодом тестов (где `baseUrl` это гарантированный `string`, а `timeout` — гарантированный `number`). Вся грязь — внутри класса. Наружу — только типизированные, валидные значения.
-
-### Частые ошибки в геттерах
-
-Три грабли, на которые наступают, когда **пишут** геттеры. Знание их сэкономит тебе пару неприятных вечеров.
-
-#### Ошибка 1. Забыли преобразовать тип
+### Частая ошибка новичка — читать `process.env` напрямую вместо метода
 
 ```typescript
-get timeout(): number {
-  return this.getOptional('TIMEOUT', '30000');   // ❌ возвращает строку!
-}
+// ❌ снова лезем в process.env напрямую, в обход единой точки
+const url = process.env.BASE_URL ?? 'https://nexus.dev.tltgrp.com';
 ```
 
-Геттер **обещал** `number`, но `getOptional` отдаёт **строку**. Без `Number(...)` тут — строка `'30000'`, замаскированная под число. TypeScript иногда это пропускает, и баг всплывает позже (`'30000' + 1000 === '300001000'`). **Правильно** — обернуть в `Number(...)`:
+Если так сделать в **нескольких** местах — мы **размножим** ту самую логику, ради устранения которой завели класс, и вдобавок продублируем URL как магическую строку. **Правильно** — всегда через `configManager.getBaseUrl()`. Ещё одна частая заноза: забыть, что `getMemberId()` возвращает `string | undefined`, и передать результат туда, где ожидается гарантированный `string`, без проверки — TypeScript на это укажет сам, если тип не приведён вручную (`as string`) в обход.
 
-```typescript
-get timeout(): number {
-  return Number(this.getOptional('TIMEOUT', '30000'));   // ✅ число
-}
-```
-
-#### Ошибка 2. `getRequired` там, где нужен `getOptional`
-
-```typescript
-get retries(): number {
-  return Number(this.getRequired('RETRIES'));   // ❌ упадёт, если RETRIES не задан
-}
-```
-
-Количество ретраев — настройка **с разумным дефолтом** (например, 2). Если использовать `getRequired`, проект **упадёт** у каждого, кто не задал `RETRIES` — хотя мог бы спокойно взять дефолт. Это **избыточная** строгость. **Правильно** — `getOptional` с дефолтом. Используй `getRequired` **только** для того, без чего работать **физически нельзя** (`BASE_URL`, `API_KEY`).
-
-#### Ошибка 3. Логика чтения env **в геттере**, а не в помощнике
-
-```typescript
-get baseUrl(): string {
-  const v = process.env.BASE_URL;          // ❌ снова лезем в process.env напрямую
-  if (!v) throw new Error('no base url');
-  return v;
-}
-```
-
-Тут геттер **сам** читает `process.env` и сам валидирует. Если так сделать в **каждом** геттере — мы **размножим** ту самую логику, ради устранения которой и завели класс. **Правильно** — вся работа с `process.env` живёт в `getRequired`/`getOptional`, а геттеры — **тонкие**, только зовут помощник. Одна точка чтения env — **внутри** помощников, не в геттерах.
-
-> Запомни: геттер должен быть **в одну строку** — назвал помощник, преобразовал тип. Вся логика — в `getRequired`/`getOptional`. Если геттер «растолстел» — ты, скорее всего, дублируешь то, что должно быть в помощнике.
+> Запомни: одна точка чтения `process.env` — внутри `getInstance()`. Всё остальное — вызовы уже готовых методов.
 
 ### Как тест пользуется `configManager`
 
-Теория хороша, но давай посмотрим, как `ConfigurationManager` выглядит **со стороны теста** — того, кто его потребляет. Вот типичный фрагмент:
+Теория хороша, но давай посмотрим, как `ConfigurationManager` выглядит **со стороны теста** — того, кто его потребляет. Вот реальный паттерн:
 
 ```typescript
-import { configManager } from '../support/configManager';
+import { configManager } from '@config';
 
 test('user can open profile', async ({ page }) => {
-  await page.goto(`${configManager.baseUrl}/profile`);
-  await page.waitForSelector('.profile', {
-    timeout: configManager.timeout,
-  });
+  await page.goto(`${configManager.getBaseUrl()}/profile`);
+  await page.waitForSelector('.profile');
 });
 ```
 
 Разберём, что тут происходит.
 
-- **`import { configManager } from '...'`** — импортируем **готовый единственный экземпляр** (помнишь `export const configManager` в конце класса?). Не `new`, не `getInstance()` в каждом тесте — просто берём готовое.
-- **`configManager.baseUrl`** — обращаемся как к **полю** (геттер!). Получаем гарантированный `string`. Если `BASE_URL` не задан — мы бы **не дошли** до этой строки: упали бы при первом обращении с понятным сообщением.
-- **`${configManager.baseUrl}/profile`** — склеиваем URL. Чисто, читаемо, безопасно. Никакого `process.env`, никакого риска опечатки.
-- **`timeout: configManager.timeout`** — передаём тайм-аут. Это **число** (`number`), потому что геттер сделал `Number(...)` внутри. Тесту не надо думать про преобразование — он получает **готовое** число.
+- **`import { configManager } from '@config'`** — импортируем **готовый единственный экземпляр** через path-alias `@config` (алиас на `config/index.ts`, из урока 4.1). Не `new`, не `getInstance()` в каждом тесте — просто берём готовое.
+- **`configManager.getBaseUrl()`** — вызов метода. Получаем гарантированный `string`. Если бы `ENV` был неподдерживаемым — мы бы **не дошли** до этой строки: весь процесс упал бы ещё при первом обращении к `getInstance()`, с понятным сообщением про неподдерживаемое окружение.
+- **`${configManager.getBaseUrl()}/profile`** — склеиваем URL. Чисто, читаемо, безопасно. Никакого `process.env`, никакого риска опечатки в имени переменной.
 
 Сравни с тем, как этот же тест выглядел бы **без** `ConfigurationManager`:
 
 ```typescript
 test('user can open profile', async ({ page }) => {
-  const baseUrl = process.env.BASE_URL;            // string | undefined
-  const timeout = Number(process.env.TIMEOUT || '30000');  // ручное преобразование
+  const baseUrl = process.env.BASE_URL;            // string | undefined, и какое ENV вообще?
   await page.goto(`${baseUrl}/profile`);           // вдруг baseUrl = undefined?
-  await page.waitForSelector('.profile', { timeout });
+  await page.waitForSelector('.profile');
 });
 ```
 
-В версии «без» — четыре строки возни с окружением **в каждом** тесте: чтение, дефолт, преобразование, и риск `undefined`. В версии «с» — тест просто **берёт готовое** через `configManager` и занимается **своим делом** (проверкой профиля), а не возится с настройками. Вот ради этого и нужен «ресепшен»: тест не бегает за настройками, а **спрашивает в одном окне** и работает дальше.
+В версии «без» — риск `undefined`, риск опечатки в имени переменной, и непонятно, кто вообще решает, какое это окружение. В версии «с» — тест просто **берёт готовое** через `configManager` и занимается **своим делом** (проверкой профиля), а не возится с настройками. Вот ради этого и нужен «ресепшен»: тест не бегает за настройками, а **спрашивает в одном окне** и работает дальше.
 
 <AskClaudeButton
   context="part-4"
-  hint="Что в типизированном доступе зацепило? Чаще всего — разница getRequired (падает) vs getOptional (дефолт), или преобразования типов (Number(...), === 'true'). Расскажи, что именно — разберу на дополнительном геттере."
+  hint="Что в типизированном доступе зацепило? Чаще всего — идея двухслойной валидации (компилятор проверяет форму окружения заранее, resolveEnvironment проверяет имя окружения в рантайме), или честный тип string | undefined у getMemberId(). Расскажи, что именно — разберу на дополнительном примере."
 />
 
 ## Часть 5. А зачем мне это знать как QA?
@@ -626,23 +551,23 @@ test('user can open profile', async ({ page }) => {
 
 Самая прямая выгода. Тебе говорят: «тест идёт не на то окружение». Где это настраивается?
 
-Раньше ты бы **искал** по всему коду, где задаётся URL — в тесте? в конфиге? в `process.env`? Теперь ты знаешь: **всё** про окружение — в `ConfigurationManager`. Открыл его — увидел **все** настройки разом: `baseUrl`, `apiKey`, `timeout`. Одна точка, один взгляд.
+Раньше ты бы **искал** по всему коду, где задаётся URL — в тесте? в конфиге? в `process.env`? Теперь ты знаешь: **всё** про окружение — в `ConfigurationManager`. Открыл его — увидел **все** методы разом: `getBaseUrl()`, `getSsoBaseUrl()`, `getOrganizationId()`, `getMemberId()`. Одна точка, один взгляд.
 
 Это «ресепшен» в действии: не бегаешь по этажам, а спрашиваешь **в одном месте**.
 
-### Причина 2. Понимаешь сообщение «Missing required env variable»
+### Причина 2. Понимаешь сообщение «Unsupported ENV»
 
-Ты запускаешь тесты и сразу видишь:
+Ты запускаешь тесты с опечаткой в переменной окружения и сразу видишь:
 
 ```
-Error: Missing required env variable: BASE_URL
+Error: Unsupported ENV "stagging". Supported values: local, dev, stg.
 ```
 
-Раньше это могло бы напугать — «тест сломался!». Теперь ты понимаешь: это **не баг теста**. Это `ConfigurationManager` сработал как задумано — **fail fast** сказал тебе: «окружение не настроено, ты не задал `BASE_URL`».
+Раньше это могло бы напугать — «тест сломался!». Теперь ты понимаешь: это **не баг теста**. Это `resolveEnvironment` сработал как задумано — **fail fast** сказал тебе: «такого окружения нет, вот список того, что реально поддерживается».
 
-Ты не лезешь чинить код. Ты **настраиваешь окружение** — задаёшь `BASE_URL` в `.env`. Понятное сообщение → понятное действие. Минута вместо получаса дебага.
+Ты не лезешь чинить код. Ты **исправляешь опечатку** в `ENV=stagging` на `ENV=stg`. Понятное сообщение → понятное действие. Минута вместо получаса дебага.
 
-**Мини-история.** Новый инженер склонировал проект, запустил тесты — и **все** упали с `Missing required env variable: BASE_URL`. Он было подумал «у них тесты сломаны, плохой проект». Но коллега объяснил: «это не баг — у тебя просто нет `.env`, скопируй `.env.example` и впиши значения». Инженер скопировал, вписал `BASE_URL` — и всё **позеленело**. Понятная ошибка **сама** подсказала ему, что делать. Не будь там `getRequired`, тесты падали бы на разных шагах с туманными `undefined`, и новичок решил бы, что проект просто гнилой.
+**Мини-история.** Новый инженер склонировал проект, захотел погонять тесты на стейджинге и написал `ENV=staging npm test` (интуитивно — по аналогии с другими проектами, где так и называется). Тесты сразу упали с `Unsupported ENV "staging". Supported values: local, dev, stg`. Он было подумал «у них тесты сломаны». Но коллега объяснил: «у нас staging сокращён до `stg`, это не баг — просто наша конвенция именования». Инженер поправил на `ENV=stg` — и всё заработало. Понятная ошибка **сама** подсказала, что делать. Не будь там `resolveEnvironment` с явным списком поддерживаемых значений, инженер получил бы либо тихий откат на дефолтный `dev` (и тестировал не то, что хотел, даже не заметив), либо непонятную ошибку где-то в середине прогона.
 
 ### Причина 3. На code review ловишь `process.env` напрямую
 
@@ -654,43 +579,41 @@ await page.goto(process.env.STAGING_URL + '/orders');
 
 Раньше прошёл бы мимо. Теперь — комментарий:
 
-> «У нас доступ к окружению идёт через `ConfigurationManager`, не напрямую через `process.env`. Добавь геттер `stagingUrl` и используй `configManager.stagingUrl` — будет типизация и валидация, и опечатка в имени не проскочит».
+> «У нас доступ к окружению идёт через `ConfigurationManager`, не напрямую через `process.env`. Если такое поле уже есть в `EnvironmentConfig` — используй `configManager.getBaseUrl()`. Если это новое поле — его нужно сначала добавить в `config/types.ts` и `config/environments.ts` (для ВСЕХ трёх окружений), и только потом завести геттер».
 
 Это **архитектурное** замечание. Ты бережёшь «одну точку правды» от размывания — не даёшь `process.env` снова расползтись по коду.
 
-**Мини-история.** В одной команде был аккуратный `ConfigurationManager`. Но новый разработчик про него не знал и в своём PR написал `process.env.PAYMENT_URL` напрямую — с опечаткой `PAYMET_URL`. QA на review заметил: «у нас доступ к env через `configManager`, заведи геттер `paymentUrl`». Разработчик так и сделал — и **в процессе** обнаружил собственную опечатку (геттер с правильным именем просто не дал бы ей проскочить). Один комментарий на review закрыл и стилевую проблему, и спрятанный баг. Вот зачем держать границу: она ловит ошибки, о которых ты даже не подозревал.
+**Мини-история.** В одной команде был аккуратный `ConfigurationManager`. Но новый разработчик про него не знал и в своём PR написал `process.env.PAYMENT_URL` напрямую — с опечаткой `PAYMET_URL`, которая тихо стала бы `undefined` в рантайме. QA на review заметил: «у нас доступ к env через `configManager` — если поле новое, заведи его в `types.ts`/`environments.ts` и добавь геттер, компилятор сам заставит заполнить его для каждого окружения». Разработчик так и сделал — и **в процессе** TypeScript тут же указал на опечатку, потому что поле нужно было явно объявить в интерфейсе. Один комментарий на review закрыл и стилевую проблему, и спрятанный баг. Вот зачем держать границу: она ловит ошибки, о которых ты даже не подозревал.
 
 ### Причина 4. Понимаешь, почему все тесты используют одни настройки
 
-Бывает вопрос: «а почему все тесты идут на **один** staging? Кто это решил?».
+Бывает вопрос: «а почему все тесты идут на **один** dev? Кто это решил?».
 
 Теперь ты понимаешь: `ConfigurationManager` — **singleton**. Он **один** на весь прогон, читает окружение **один раз**, и **все** тесты берут настройки из **него**. Поэтому они и **согласованы** — у них общий «директор», а не каждый сам по себе.
 
-Это объясняет и обратное: если тебе **нужно**, чтобы тесты шли на **другое** окружение, ты меняешь настройку **в одном месте** (env-переменную), и **весь** прогон переключается. Не надо править сто тестов.
+Это объясняет и обратное: если тебе **нужно**, чтобы тесты шли на **другое** окружение, ты меняешь `ENV` **в одном месте** (переменная окружения перед запуском), и **весь** прогон переключается. Не надо править сто тестов.
 
 ### Причина 5. Можешь добавить новую настройку правильно
 
-Тебе нужна новая настройка — например, путь к папке с тестовыми файлами. **Куда** её добавить?
+Тебе нужна новая настройка — например, ID ещё одного тестового shipment для нового сценария. **Куда** её добавить?
 
-Junior захардкодит прямо в тесте: `const path = './fixtures/'`. **Senior** добавит геттер в `ConfigurationManager`:
+Junior захардкодит прямо в тесте: `const shipmentId = '68456'`. **Senior** пройдёт по трём файлам:
 
-```typescript
-get fixturesPath(): string {
-  return this.getOptional('FIXTURES_PATH', './fixtures/');
-}
-```
+1. Добавит поле в интерфейс `EnvironmentConfig` (`config/types.ts`).
+2. Впишет реальное значение для **каждого** из трёх окружений (`config/environments.ts`) — TypeScript не даст забыть ни одно, ошибка компиляции подскажет сразу.
+3. Добавит метод-геттер в `ConfigurationManager` (по образцу `getShipmentIdWithDocuments()` / `getDeliveredShipmentId()` — в реальном коде уже есть подобные «канонические ID для конкретных тестовых сценариев»).
 
-И будет звать `configManager.fixturesPath`. Почему так лучше? Потому что (а) настройка попадает в **одну точку правды**, (б) её можно переопределить через env **без правки кода**, (в) у неё есть дефолт в одном месте. Это разница между «работает» и «**спроектировано**».
+И будет звать `configManager.getNewFieldId()`. Почему так лучше, хоть и три файла вместо одного хардкода? Потому что (а) настройка попадает в **одну точку правды**, (б) компилятор гарантирует, что значение задано для **всех** окружений, а не только для того, на котором ты сейчас тестируешь, (в) любой другой тест может переиспользовать то же самое поле. Это разница между «работает у меня локально» и «**спроектировано** для всей команды».
 
 ### Коротко — что меняется в твоей работе
 
 Пять причин сводятся к пяти новым привычкам:
 
-- Нужен URL или креды — смотрю в **`ConfigurationManager`**, а не ищу по коду.
-- Вижу `Missing required env variable` — настраиваю **окружение**, а не чиню код.
-- На review вижу `process.env` напрямую — предлагаю **геттер**.
+- Нужен URL или ID — смотрю в **`ConfigurationManager`**, а не ищу по коду.
+- Вижу `Unsupported ENV` — проверяю **написание** переменной `ENV`, а не чиню код.
+- На review вижу `process.env` напрямую — предлагаю существующий геттер или три файла для нового поля.
 - Понимаю, что все тесты согласованы, потому что настройки — из **одного** singleton'а.
-- Новую настройку добавляю **геттером** в `ConfigurationManager`, не хардкодом.
+- Новую настройку добавляю через `types.ts` → `environments.ts` → геттер, не хардкодом.
 
 Пять привычек — и слой Configuration перестаёт быть для тебя «чёрным ящиком».
 
@@ -731,12 +654,12 @@ get fixturesPath(): string {
       question: 'Почему `ConfigurationManager` лучше, чем `process.env` напрямую?',
       options: [
         'Ничем не лучше — `process.env` короче писать.',
-        '**Типизация** (геттеры возвращают `string`/`number`/`boolean`), **валидация** (fail fast при отсутствии обязательной переменной), **дефолты в одном месте**, **одна точка правды** (`process.env` читается только внутри класса).',
+        '**Типизация** (методы возвращают точный тип — `string`, а где честно нужно — `string | undefined`), **валидация формы окружения компилятором заранее** (плюс проверка имени `ENV` в рантайме), **одна точка правды** (`process.env` читается только внутри `getInstance()`).',
         '`ConfigurationManager` шифрует переменные окружения.',
       ],
       correct: 1,
       explanation:
-        '`ConfigurationManager` даёт **четыре** преимущества над «`process.env` повсюду»:\n\n- **Типизация** — `config.timeout` это `number`, а не строка `\'30000\'`. Преобразование — внутри.\n- **Валидация (fail fast)** — нет обязательной `BASE_URL` → падение **при старте** с понятным сообщением, а не туманное `undefined` на третьем шаге.\n- **Дефолты в одном месте** — `getOptional(\'TIMEOUT\', \'30000\')`, одинаковые для всех тестов.\n- **Одна точка правды** — `process.env` читается **только** внутри класса; везде остальное зовёт геттеры. Опечатка в имени метода ловится **компилятором**.\n\nA — нет. «Короче писать» — мнимая выгода; она оборачивается часами дебага опечаток и тихих провалов.\n\nC — нет, `ConfigurationManager` **не шифрует** env. Он **организует** доступ к ним.',
+        '`ConfigurationManager` даёт преимущества над «`process.env` повсюду»:\n\n- **Типизация** — `getBaseUrl()` гарантированно `string`; `getMemberId()` честно `string | undefined`, потому что реально может отсутствовать.\n- **Валидация заранее, а не при каждом чтении** — форма каждого окружения проверяется **компилятором** (интерфейс `EnvironmentConfig` в `environments.ts`); единственная runtime-проверка — само имя окружения в `resolveEnvironment()`, один раз при первом обращении.\n- **Одна точка правды** — `process.env` читается **только** внутри `getInstance()`; везде остальное зовёт методы. Опечатка в имени метода ловится **компилятором**.\n\nA — нет. «Короче писать» — мнимая выгода; она оборачивается часами дебага опечаток и тихих провалов.\n\nC — нет, `ConfigurationManager` **не шифрует** env. Он **организует** доступ к ним.',
     },
   ]}
 />
@@ -756,47 +679,43 @@ get fixturesPath(): string {
     <p>Тут спрятаны <strong>четыре</strong> проблемы.</p>
 
     <h4>Проблема 1. Опечатка <code>BASEURL</code> (в <code>orders.spec.ts</code>)</h4>
-    <p>В <code>products.spec.ts</code> — правильное <code>BASE_URL</code>. В <code>orders.spec.ts</code> — <code>BASEURL</code> <strong>без подчёркивания</strong>. Опечатка. <code>process.env.BASEURL</code> вернёт <code>undefined</code>, тест пойдёт на <code>undefined/orders</code> и упадёт с туманной ошибкой посреди прогона. <strong>С <code>ConfigurationManager</code> этого бы не случилось</strong> — <code>config.baseUrl</code> ловит опечатку компилятором.</p>
+    <p>В <code>products.spec.ts</code> — правильное <code>BASE_URL</code>. В <code>orders.spec.ts</code> — <code>BASEURL</code> <strong>без подчёркивания</strong>. Опечатка. <code>process.env.BASEURL</code> вернёт <code>undefined</code>, тест пойдёт на <code>undefined/orders</code> и упадёт с туманной ошибкой посреди прогона. <strong>С <code>ConfigurationManager</code> этого бы не случилось</strong> — <code>configManager.getBaseUrl()</code> не даёт опечатке в имени переменной проскочить, потому что переменная читается один раз, в одном месте, а не в каждом файле заново.</p>
 
     <h4>Проблема 2. Разные дефолты для одного <code>TIMEOUT</code></h4>
     <p>В <code>users.spec.ts</code> дефолт <code>'20000'</code>, в <code>checkout.spec.ts</code> — <code>'60000'</code>. Один и тот же <code>TIMEOUT</code>, <strong>два разных</strong> запасных значения. Никто не знает, какой «правильный». <strong>Дефолт должен быть один</strong>, в <code>ConfigurationManager</code>.</p>
 
     <h4>Проблема 3. <code>timeout</code> — строка, а ждут число</h4>
-    <p><code>process.env.TIMEOUT || '20000'</code> даёт <strong>строку</strong>. А <code>waitForSelector</code> ждёт <code>timeout</code> как <strong>число</strong>. Нужен <code>Number(...)</code>, и <code>ConfigurationManager</code> сделал бы это внутри геттера.</p>
+    <p><code>process.env.TIMEOUT || '20000'</code> даёт <strong>строку</strong>. А <code>waitForSelector</code> ждёт <code>timeout</code> как <strong>число</strong>. Нужен <code>Number(...)</code>, и <code>ConfigurationManager</code> сделал бы это внутри метода.</p>
 
     <h4>Проблема 4. <code>process.env</code> размазан по четырём файлам</h4>
     <p>Знание о настройках — в четырёх местах. Захочешь поменять чтение <code>BASE_URL</code> — правишь везде. <strong>Одна точка правды</strong> (<code>ConfigurationManager</code>) убрала бы это.</p>
 
-    <p><strong>Как исправить:</strong> завести <code>ConfigurationManager</code> с геттерами <code>baseUrl</code> и <code>timeout</code>, и заменить все <code>process.env</code> на <code>configManager.baseUrl</code> / <code>configManager.timeout</code>.</p>
+    <p><strong>Как исправить:</strong> завести <code>ConfigurationManager</code> с методами <code>getBaseUrl()</code> и <code>getTimeout()</code>, и заменить все <code>process.env</code> на <code>configManager.getBaseUrl()</code> / <code>configManager.getTimeout()</code> (у нас в Nexus такого поля нет — но в проекте, где тайм-аут единый на все тесты, добавить его в <code>EnvironmentConfig</code> было бы правильным решением).</p>
 
     <h4>🔍 Где ты это увидишь как QA</h4>
     <p>Этот «<code>process.env</code> повсюду» — типичное состояние <strong>молодого</strong> проекта (помнишь этап эволюции из урока 3.3?). Первая же опечатка в имени переменной или первый «почему у нас разные тайм-ауты» — сигнал, что пора заводить <code>ConfigurationManager</code>.</p>
   </>}
 />
 
-### Задание 2. Анализ кода — что делают помощники
+### Задание 2. Анализ кода — где на самом деле валидация
 
 <TextAnswerExercise
   exerciseId="task-2"
-  prompt={'Перед тобой кусок ConfigurationManager:\n\nget baseUrl(): string {\n  return this.getRequired("BASE_URL");\n}\n\nget retries(): number {\n  return Number(this.getOptional("RETRIES", "2"));\n}\n\nprivate getRequired(key: string): string {\n  const value = process.env[key];\n  if (!value) {\n    throw new Error(`Missing required env variable: ${key}`);\n  }\n  return value;\n}\n\nprivate getOptional(key: string, fallback: string): string {\n  return process.env[key] ?? fallback;\n}\n\nОтветь на вопросы:\n1. Что произойдёт при вызове config.baseUrl, если BASE_URL НЕ задан в окружении?\n2. Что вернёт config.retries, если RETRIES НЕ задан?\n3. В чём ключевая разница между getRequired и getOptional?'}
+  prompt={'Перед тобой реальный код из config/ConfigurationManager.ts:\n\nconst VALID_ENVIRONMENTS: readonly Environment[] = ["local", "dev", "stg"];\n\nexport function resolveEnvironment(rawEnv: string | undefined): Environment {\n  const value = (rawEnv ?? "dev").toLowerCase();\n  if (!isValidEnvironment(value)) {\n    throw new Error(\n      `Unsupported ENV "${rawEnv}". Supported values: ${VALID_ENVIRONMENTS.join(", ")}.`,\n    );\n  }\n  return value;\n}\n\ngetMemberId(): string | undefined {\n  return this.config.memberId;\n}\n\nОтветь на вопросы:\n1. Что вернёт resolveEnvironment(undefined) — то есть если ENV вообще не задан?\n2. Что произойдёт при resolveEnvironment("PROD")?\n3. Почему getMemberId() возвращает string | undefined, а не просто string, как getBaseUrl()? Разве это не то же самое «поле конфигурации»?'}
   placeholder="Напиши развёрнутый ответ..."
   hint="После «Отправить» твой ответ сохранится в браузере, а ниже появится разбор."
   solution={<>
-    <h4>Ответ 1. <code>config.baseUrl</code> без заданного <code>BASE_URL</code></h4>
-    <p><code>baseUrl</code> зовёт <code>getRequired('BASE_URL')</code>. Внутри: <code>process.env['BASE_URL']</code> вернёт <code>undefined</code>. Условие <code>if (!value)</code> истинно → <strong>бросается ошибка</strong> <code>Missing required env variable: BASE_URL</code>. Тест (и весь прогон) <strong>падает сразу</strong>, при первом обращении, с понятным сообщением. Это <strong>fail fast</strong>.</p>
+    <h4>Ответ 1. <code>resolveEnvironment(undefined)</code></h4>
+    <p><code>rawEnv ?? 'dev'</code> подставит дефолт <code>'dev'</code> (не <code>'local'</code>!) — значение станет <code>'dev'</code>, оно есть в <code>VALID_ENVIRONMENTS</code>, проверка <code>isValidEnvironment</code> пройдёт, функция вернёт <strong><code>'dev'</code></strong>. Никакого падения — просто тихий дефолт. Если ты ожидал <code>'local'</code>, не задав <code>ENV</code> явно, — сюрприз будет неприятным.</p>
 
-    <h4>Ответ 2. <code>config.retries</code> без заданного <code>RETRIES</code></h4>
-    <p><code>retries</code> зовёт <code>getOptional('RETRIES', '2')</code>. Внутри: <code>process.env['RETRIES']</code> вернёт <code>undefined</code>, и оператор <code>?? '2'</code> подставит <strong>дефолт</strong> <code>'2'</code>. Затем <code>Number('2')</code> превратит в число. Итог — <code>config.retries</code> вернёт <strong><code>2</code></strong>. Никакого падения — <strong>необязательная</strong> настройка взяла дефолт.</p>
+    <h4>Ответ 2. <code>resolveEnvironment('PROD')</code></h4>
+    <p><code>.toLowerCase()</code> превратит в <code>'prod'</code>. Его <strong>нет</strong> в <code>['local', 'dev', 'stg']</code> — <code>isValidEnvironment</code> вернёт <code>false</code>, и функция <strong>бросит ошибку</strong>: <code>Unsupported ENV "PROD". Supported values: local, dev, stg.</code>. Заметь: в сообщении сохраняется <strong>оригинальный</strong> <code>rawEnv</code> (<code>"PROD"</code>, с большими буквами) — это специально, чтобы ты видел именно то, что сам ввёл, а не уже обработанное значение.</p>
 
-    <h4>Ответ 3. Разница <code>getRequired</code> vs <code>getOptional</code></h4>
-    <ul>
-      <li><strong><code>getRequired</code></strong> — для <strong>обязательных</strong> настроек. Нет переменной → <strong>бросает ошибку</strong> (fail fast). Там, где <strong>без</strong> настройки работать <strong>нельзя</strong> (нет <code>BASE_URL</code> — куда идти?).</li>
-      <li><strong><code>getOptional</code></strong> — для <strong>необязательных</strong>. Нет переменной → подставляет <strong>дефолт</strong>, не падает. Там, где есть <strong>разумное</strong> значение по умолчанию (нет <code>RETRIES</code> — пусть будет 2).</li>
-    </ul>
-    <p>Выбор помощника = ответ на вопрос «<strong>критична</strong> ли эта настройка?». Критична → <code>getRequired</code>. Есть дефолт → <code>getOptional</code>.</p>
+    <h4>Ответ 3. Почему <code>getMemberId()</code> — <code>string | undefined</code></h4>
+    <p>Потому что это <strong>честный</strong> тип, а не недосмотр. В <code>.env</code> секрет <code>MEMBER_ID_{'{ENV}'}</code> не для каждого окружения обязательно задан — где-то он есть, где-то нет. Если бы <code>getMemberId()</code> врал, что всегда возвращает <code>string</code>, а по факту иногда отдавал <code>undefined</code> — TypeScript пропустил бы это тихо, и баг всплыл бы в рантайме на попытке использовать <code>undefined</code> как строку. Честный тип <code>string | undefined</code> заставляет <strong>вызывающий код</strong> явно решить, что делать при отсутствии значения (проверка <code>if</code>, <code>??</code>, и т.п.) — ещё на этапе компиляции, а не в проде.</p>
 
     <h4>🔍 Что важно унести</h4>
-    <p>Геттер — это <strong>витрина</strong> (красивый типизированный доступ). Помощники <code>getRequired</code>/<code>getOptional</code> — <strong>кухня</strong> (где валидация и дефолты). Тест видит только витрину; вся защита — на кухне, в одном месте.</p>
+    <p>Валидация в <code>ConfigurationManager</code> — двухслойная: (1) форма каждого окружения проверяется компилятором заранее — это ловит «забыли поле»; (2) само имя окружения проверяется один раз в рантайме — это ловит «опечатался в ENV». А там, где значение реально может отсутствовать, тип честно говорит об этом (<code>string | undefined</code>), а не притворяется гарантированным.</p>
   </>}
 />
 
@@ -812,7 +731,7 @@ get fixturesPath(): string {
 
     <h4>Типичный ответ 1. «У нас есть configManager»</h4>
     <blockquote>
-      <p>«Открыл — да, у нас есть класс с геттерами <code>getBaseUrl()</code>, <code>getTimeout()</code>. Не знал, что это называется singleton и что это типовой паттерн. Думал, просто удобный класс».</p>
+      <p>«Открыл — да, у нас есть класс с методами <code>getBaseUrl()</code>, <code>getOrganizationId()</code>. Не знал, что это называется singleton и что это типовой паттерн. Думал, просто удобный класс».</p>
     </blockquote>
     <p>Это <strong>зрелый</strong> проект. Хорошо, что ты теперь <strong>видишь</strong> в нём паттерн — это даёт язык, чтобы обсуждать его с командой и сравнивать с другими проектами.</p>
 
@@ -830,9 +749,9 @@ get fixturesPath(): string {
 
     <h4>Типичный ответ 4. «Понятные ошибки»</h4>
     <blockquote>
-      <p>«Был случай — забыл задать <code>API_KEY</code>, тест упал с <code>Missing required env variable: API_KEY</code>. Сразу понял, в чём дело, добавил в <code>.env</code> — починил за минуту».</p>
+      <p>«Был случай — задал <code>ENV=staging</code> вместо нашего <code>stg</code>, тест упал с <code>Unsupported ENV "staging". Supported values: local, dev, stg.</code>. Сразу понял, в чём дело, поправил переменную — починил за минуту».</p>
     </blockquote>
-    <p>Это <strong>fail fast в действии</strong>. Ты на собственном опыте увидел, как понятная ошибка экономит время. Именно ради таких минут (вместо часов) и нужен <code>getRequired</code>.</p>
+    <p>Это <strong>fail fast в действии</strong>, только на уровне ИМЕНИ окружения, а не отдельного поля. Ты на собственном опыте увидел, как понятная ошибка экономит время. Именно ради таких минут (вместо часов) и нужна проверка в <code>resolveEnvironment</code>.</p>
 
     <h4>🔍 Что важно унести</h4>
     <p>Минимум, который стоит сделать на новом проекте: <strong>найди, где читается окружение</strong>. Есть <code>ConfigurationManager</code> — открой и прочитай, какие настройки в нём. Нет — это первый кандидат на улучшение, особенно если <code>process.env</code> уже расползся.</p>
@@ -854,16 +773,16 @@ get fixturesPath(): string {
     'Я могу прочитать реализацию singleton: `private static instance`, `private constructor`, `static getInstance()`.',
     'Я понимаю, зачем **приватный конструктор** — чтобы снаружи нельзя было сделать `new` и создать второй экземпляр.',
     'Я понимаю, что `static` — это «принадлежит классу, а не объекту».',
-    'Я понимаю, что такое **геттер** (`get baseUrl()`) — зовётся как поле, но внутри выполняет код.',
-    'Я знаю разницу `getRequired` (падает, если нет) vs `getOptional` (подставляет дефолт).',
-    'Я понимаю **fail fast** — падать сразу, в точке причины, с понятным сообщением.',
-    'Я понимаю **преобразование типов** (`Number(...)`, `=== \'true\'`) — env всегда строки, а тесту нужны числа/булевы.',
-    'Я понимаю, что `ConfigurationManager` — граница между «грязным» `process.env` и «чистым» типизированным кодом.',
-    'Я могу на code review заметить `process.env` напрямую и предложить геттер.',
-    'Я знаю, как добавить новую настройку правильно — геттером в `ConfigurationManager`, не хардкодом.',
+    'Я понимаю, что настройки читаются **методами** (`getBaseUrl()`), а не свойствами — но принцип «одна точка входа» тот же.',
+    'Я знаю, что валидация в реальном `ConfigurationManager` двухслойная: форма окружения — компилятором заранее (`environments.ts` + интерфейс), имя окружения — рантайм-проверкой в `resolveEnvironment()`.',
+    'Я понимаю **fail fast** на реальном примере — `Unsupported ENV "X"` падает сразу, в точке причины, с понятным сообщением и списком поддерживаемых значений.',
+    'Я понимаю, почему некоторые геттеры честно возвращают `string | undefined` (например, `getMemberId()`) — потому что значение реально может отсутствовать, и тип это не скрывает.',
+    'Я понимаю, что `ConfigurationManager` — граница между «грязным» `process.env` (читается только внутри `getInstance()`) и «чистым» типизированным кодом снаружи.',
+    'Я могу на code review заметить `process.env` напрямую и предложить существующий метод или три файла для нового поля (`types.ts` → `environments.ts` → геттер).',
+    'Я знаю, как добавить новую настройку правильно — через `EnvironmentConfig`, а не хардкодом.',
     'Я понимаю **ленивую инициализацию** — экземпляр создаётся при первом вызове `getInstance()`, не раньше.',
     'Я знаю, что у singleton есть **критики** (глобальное состояние, трудно мокать), и почему для конфигурации он всё равно оправдан.',
-    'Я знаю три частые ошибки в геттерах: забыть `Number(...)`, взять `getRequired` вместо `getOptional`, дублировать чтение env в геттере.',
+    'Я знаю, что `HEADLESS`/`SLOW_MO` — единственные overrides, применяемые отдельной **чистой** функцией (`applyEnvOverrides`), которую легко тестировать в изоляции.',
     'Я понимаю, что `ConfigurationManager` появляется **из боли** (опечатки, дубли), а не «на всякий случай» с первого теста.',
   ]}
 />
@@ -880,19 +799,19 @@ get fixturesPath(): string {
     { term: '`getInstance()`', definition: 'Статический метод-«дверь» к единственному экземпляру singleton\'а. Создаёт его при первом вызове, дальше возвращает тот же.' },
     { term: 'Private constructor (приватный конструктор)', definition: 'Конструктор, закрытый для внешнего `new`. Гарантирует, что экземпляр создаётся только изнутри класса — основа singleton\'а.' },
     { term: '`static` (статический)', definition: 'Член класса, принадлежащий **самому классу**, а не конкретному объекту. Один на весь класс.' },
-    { term: 'Getter (геттер)', definition: 'Метод с `get`, вызываемый как свойство (`config.baseUrl`, без скобок). Внутри выполняет код.' },
-    { term: 'Type coercion (преобразование типов)', definition: 'Превращение значения из одного типа в другой: `Number(\'30000\')` → число, `\'true\' === \'true\'` → булево.' },
-    { term: 'Fail fast (упасть быстро)', definition: 'Принцип: при проблеме падать **немедленно**, в точке причины, с понятным сообщением — не тащить поломку дальше.' },
+    { term: 'Getter-метод', definition: 'Обычный метод, возвращающий настройку (`getBaseUrl()`, со скобками). У нас — не TS-геттер-свойство, а именно метод.' },
+    { term: 'Type coercion (преобразование типов)', definition: 'Превращение значения из одного типа в другой: `Number.parseInt(\'250\', 10)` → число. У нас встречается в `applyEnvOverrides` для `SLOW_MO`.' },
+    { term: 'Fail fast (упасть быстро)', definition: 'Принцип: при проблеме падать **немедленно**, в точке причины, с понятным сообщением — не тащить поломку дальше. У нас — `resolveEnvironment` падает на неподдерживаемом имени `ENV`.' },
     { term: 'Single source of truth (одна точка правды)', definition: 'Принцип: у каждого факта — **один** источник. Настройки читаются только в `ConfigurationManager`.' },
-    { term: 'Validation (валидация)', definition: 'Проверка, что данные корректны (например, обязательная переменная задана). Нет — `getRequired` бросает ошибку.' },
-    { term: 'Default / fallback (значение по умолчанию)', definition: 'Запасное значение, подставляемое, когда настройка не задана: `getOptional(\'TIMEOUT\', \'30000\')`.' },
+    { term: 'Validation (валидация)', definition: 'Проверка, что данные корректны. У нас двухслойная: форма окружения — компилятором (интерфейс `EnvironmentConfig`), имя окружения — рантайм-проверкой в `resolveEnvironment`.' },
+    { term: 'Default / fallback (значение по умолчанию)', definition: 'Запасное значение, подставляемое, когда настройка не задана. У нас — дефолт окружения `\'dev\'` в `resolveEnvironment(rawEnv ?? \'dev\')`.' },
     { term: '`throw new Error(...)`', definition: 'Бросить ошибку с сообщением. Прерывает выполнение — основа fail fast.' },
     { term: '`??` (nullish coalescing)', definition: 'Оператор «если слева пусто (`null`/`undefined`) — возьми справа». `value ?? fallback`.' },
     { term: 'Instance (экземпляр)', definition: 'Конкретный объект, созданный по классу-чертежу. У singleton\'а он один.' },
     { term: 'Type (тип)', definition: 'Обещание, какого вида значение: `string`, `number`, `boolean`. Геттеры дают точный тип вместо `string | undefined`.' },
     { term: 'Class (класс)', definition: '«Чертёж», по которому создают объекты. `ConfigurationManager` — класс; его единственный экземпляр — объект.' },
     { term: 'Constructor (конструктор)', definition: 'Особый метод, вызываемый при создании объекта (`new`). В singleton он **приватный**.' },
-    { term: '`this`', definition: '«Текущий объект» внутри метода. `this.getRequired(...)` — позвать метод **этого же** экземпляра.' },
+    { term: '`this`', definition: '«Текущий объект» внутри метода. `this.config.baseUrl` — обратиться к полю **этого же** экземпляра.' },
     { term: 'Module singleton', definition: 'Альтернатива `getInstance()`: `export const x = new Class()`. Модуль исполняется один раз, поэтому экземпляр один.' },
     { term: 'GoF (Банда четырёх)', definition: 'Авторы классической книги о паттернах проектирования (1994), где описан, в частности, Singleton.' },
     { term: 'Global state (глобальное состояние)', definition: 'Данные, доступные из любой точки программы. Singleton — его форма; для конфигурации оправдано, повсюду — опасно.' },
@@ -902,33 +821,34 @@ get fixturesPath(): string {
     { term: 'Boilerplate (обвязка)', definition: 'Повторяющийся служебный код (чтение env, дефолт, преобразование в каждом тесте). `ConfigurationManager` убирает его в одно место.' },
     { term: 'Code smell (запах кода)', definition: 'Признак, что спроектировано не лучшим образом. `process.env` в десяти местах — запах, сигнал завести централизацию.' },
     { term: '`.env.example`', definition: 'Шаблон файла секретов без значений — копируешь в `.env` и вписываешь своё. Из урока 4.2; работает в паре с `ConfigurationManager`.' },
-    { term: 'Environment (окружение)', definition: 'Среда, где работает приложение: `local`, `dev`, `staging`, `prod`. У каждой свой набор настроек.' },
+    { term: 'Environment (окружение)', definition: 'Среда, где работает приложение. У нас ровно три: `local`, `dev`, `stg` — никакого `prod` не существует.' },
     { term: 'Credentials (креды)', definition: 'Учётные данные для входа: email + пароль, токен. Часть конфигурации; секретная — живёт в `.env`.' },
-    { term: 'Timeout (тайм-аут)', definition: 'Сколько ждать события (элемент, ответ) перед тем, как считать его упавшим. Настройка-число, часто с дефолтом.' },
-    { term: 'Flag (флаг)', definition: 'Булева настройка вкл/выкл: `headless: true/false`. Читается из env-строки через сравнение (`=== \'true\'`).' },
+    { term: 'Overrides', definition: 'Значения, которыми можно переопределить часть конфигурации в момент запуска. У нас — только `HEADLESS`/`SLOW_MO`, через чистую функцию `applyEnvOverrides`.' },
+    { term: 'Flag (флаг)', definition: 'Булева настройка вкл/выкл, например `HEADLESS`. Читается из env-строки через сравнение (`=== \'true\'`).' },
+    { term: 'Pure function (чистая функция)', definition: 'Функция, которая не читает глобальное состояние (типа `process.env`) сама — принимает всё нужное аргументами. Легко тестировать в изоляции. `applyEnvOverrides`/`resolveEnvironment` — примеры.' },
     { term: 'Design pattern (паттерн проектирования)', definition: 'Типовое, проверенное решение частой задачи. Singleton — один из паттернов.' },
-    { term: 'Required vs optional', definition: 'Обязательная настройка (`getRequired`, падает без неё) против необязательной (`getOptional`, берёт дефолт).' },
-    { term: 'Encapsulation (инкапсуляция)', definition: 'Сокрытие внутренней «кухни» (чтение env, валидация) за чистым интерфейсом (геттеры). Снаружи видно только нужное.' },
+    { term: 'Structural typing (структурная типизация)', definition: 'TypeScript проверяет, что объект **содержит** все нужные поля правильных типов — а не то, что он «объявлен как» нужный тип. Так `EnvironmentConfig` заставляет каждое окружение иметь все поля.' },
+    { term: 'Encapsulation (инкапсуляция)', definition: 'Сокрытие внутренней «кухни» (чтение env, выбор окружения) за чистым интерфейсом (методы). Снаружи видно только нужное.' },
   ]}
 />
 
 ## ✅ Финал
 
-Ты прошёл первый урок Модуля 5 — и сделал первый **шаг вглубь** архитектуры. До этого мы смотрели на проект сверху: слои, стек, папки, граница репозитория. Сегодня мы **спустились** в первый конкретный слой — Configuration — и разобрали его «ресепшен», `ConfigurationManager`. Ты понял, **зачем** настройки централизуют: чтобы не размазывать `process.env` по сотне тестов с опечатками, без типов и без валидации. Ты разобрал паттерн **singleton** — один экземпляр на весь прогон, как один директор на компанию, — и прочитал его реализацию построчно: приватный конструктор, который запрещает второй `new`, и `getInstance()`, который выдаёт всегда **тот же** объект. И ты увидел, как этот объект отдаёт настройки **типизированно** и **безопасно** — через геттеры, с `getRequired` (fail fast для обязательного) и `getOptional` (дефолт для необязательного).
+Ты прошёл первый урок Модуля 5 — и сделал первый **шаг вглубь** архитектуры. До этого мы смотрели на проект сверху: слои, стек, папки, граница репозитория. Сегодня мы **спустились** в первый конкретный слой — Configuration — и разобрали его «ресепшен», `ConfigurationManager`. Ты понял, **зачем** настройки централизуют: чтобы не размазывать `process.env` по сотне тестов с опечатками, без типов и без валидации. Ты разобрал паттерн **singleton** — один экземпляр на весь прогон, как один директор на компанию, — и прочитал его реализацию построчно: приватный конструктор, который запрещает второй `new`, и `getInstance()`, который выдаёт всегда **тот же** объект. И ты увидел, как этот объект отдаёт настройки **типизированно** и **безопасно** — через методы, с валидацией в двух точках: форма окружения проверяется компилятором заранее, а имя окружения — один раз в рантайме.
 
-Самое практичное, что ты унесёшь, — **понимание сообщения `Missing required env variable`**. Когда ты увидишь его при запуске тестов, ты больше не испугаешься «тест сломался». Ты прочитаешь его как задумано: «окружение не настроено, мне надо задать эту переменную». Понятная ошибка → понятное действие → минута вместо получаса. А ещё ты теперь знаешь, **где** живут настройки твоего проекта (в одном месте, не разбросаны) и **как** добавить новую правильно — геттером, а не хардкодом. Это разница между «человеком, который запускает тесты» и «человеком, который понимает, как тесты устроены изнутри».
+Самое практичное, что ты унесёшь, — **понимание сообщения `Unsupported ENV`**. Когда ты увидишь его при запуске тестов, ты больше не испугаешься «тест сломался». Ты прочитаешь его как задумано: «такого окружения нет, вот список поддерживаемых». Понятная ошибка → понятное действие → минута вместо получаса. А ещё ты теперь знаешь, **где** живут настройки твоего проекта (в одном месте, не разбросаны) и **как** добавить новую правильно — через `types.ts`/`environments.ts`, а не хардкодом. Это разница между «человеком, который запускает тесты» и «человеком, который понимает, как тесты устроены изнутри».
 
-В следующем уроке мы посмотрим **интересную** вещь — как `ConfigurationManager` **переключается между окружениями**. Сегодня мы говорили «есть `BASE_URL`», но **откуда** он берёт, что для `dev` это один URL, для `staging` — другой, а для `prod` — третий? Как тест **узнаёт**, на каком окружении он сегодня бежит? И что такое **overrides** — когда ты хочешь временно **переопределить** одну настройку, не трогая остальные? Это следующий уровень той же темы — не просто «читать настройки», а **жонглировать окружениями**. Увидимся в уроке 5.2.
+В следующем уроке мы посмотрим **интересную** вещь — как `ConfigurationManager` **переключается между окружениями**. Сегодня мы говорили «есть `getBaseUrl()`», но **откуда** он берёт, что для `dev` это один URL, а для `stg` — другой? Как тест **узнаёт**, на каком окружении он сегодня бежит? И что такое **overrides** — когда ты хочешь временно **переопределить** `HEADLESS`/`SLOW_MO`, не трогая остальную конфигурацию? Это следующий уровень той же темы — не просто «читать настройки», а **жонглировать окружениями**. Увидимся в уроке 5.2.
 
 ### Несколько практических советов на старт
 
 Если хочешь применить знания **сегодня же** — вот пять шагов на полчаса:
 
-1. **Найди в своём проекте, где читается окружение.** Поищи `process.env` по коду. Если он в одном файле (`configManager.ts`) — хорошо. Если разбросан по тестам — это сигнал.
-2. **Открой `ConfigurationManager`** (или его аналог), если есть. Прочитай геттеры — это **список** всех настроек проекта в одном месте.
-3. **Проверь, есть ли валидация.** Падает ли проект понятной ошибкой, если не задать обязательную переменную? Если просто `undefined` едет дальше — стоит добавить `getRequired`.
-4. **Найди преобразования типов.** Где env-строки превращаются в числа/булевы? Если этого нет, а тесты ждут число — там скрытый баг.
-5. **На следующем code review** обрати внимание на `process.env` напрямую в тестах. Это кандидат на «вынести в геттер».
+1. **Найди в своём проекте, где читается окружение.** Поищи `process.env` по коду. Если он в одном файле (у нас — `config/ConfigurationManager.ts`) — хорошо. Если разбросан по тестам — это сигнал.
+2. **Открой `ConfigurationManager`** (или его аналог), если есть. Прочитай методы — это **список** всех настроек проекта в одном месте.
+3. **Проверь, есть ли валидация.** Падает ли проект понятной ошибкой на неподдерживаемом имени окружения? Проверь также: гарантирует ли компилятор, что у каждого окружения заполнены все поля?
+4. **Найди overrides.** Что можно переопределить в момент запуска, не трогая остальную конфигурацию (у нас — `HEADLESS`/`SLOW_MO`)? Реализовано ли это чистой функцией, которую легко тестировать отдельно?
+5. **На следующем code review** обрати внимание на `process.env` напрямую в тестах. Это кандидат на «вынести в конфиг».
 
 Эти пять шагов — полчаса. После них ты понимаешь слой Configuration своего проекта на уровень глубже.
 
@@ -936,6 +856,6 @@ get fixturesPath(): string {
 
 Если бы у меня было **30 секунд** объяснить суть этого урока, это звучало бы так:
 
-> «Настройки не хватают откуда попало — их собирают в одну точку правды, `ConfigurationManager`. Это singleton: один экземпляр на весь прогон (как один директор), сделанный через приватный конструктор (нельзя `new` снаружи) и `getInstance()` (всегда тот же объект). Он читает `process.env` в одном месте, валидирует (`getRequired` падает с понятной ошибкой, если обязательной переменной нет — fail fast), даёт дефолты (`getOptional`) и типизирует (геттер `timeout` возвращает `number`, не строку). Тесты зовут `config.baseUrl` — чисто, безопасно, опечатку ловит компилятор».
+> «Настройки не хватают откуда попало — их собирают в одну точку правды, `ConfigurationManager`. Это singleton: один экземпляр на весь прогон (как один директор), сделанный через приватный конструктор (нельзя `new` снаружи) и `getInstance()` (всегда тот же объект). Валидация — не «на каждое поле по проверке», а в двух точках: форма каждого окружения проверяется компилятором заранее (интерфейс `EnvironmentConfig`), а само имя окружения — один раз в рантайме (`resolveEnvironment` падает с понятной ошибкой на неподдерживаемом `ENV`). Тесты зовут `configManager.getBaseUrl()` — чисто, безопасно, опечатку в имени метода ловит компилятор».
 
 Если ты можешь повторить это **своими словами** — урок усвоен. Если нет — вернись к Части 3 (singleton) и Части 4 (типизированный доступ). Там сердце урока: **одна точка правды о настройках, защищённая типами и валидацией.**

@@ -77,7 +77,7 @@ log.error({ test: 'createUser', error: err }, 'Submit failed');
 
 #### Где увидишь в проекте
 
-- `package.json` → `"pino": "^9.x"`, иногда `"pino-pretty"` рядом (для красивого вывода в локальной разработке).
+- `package.json` → `"pino": "^8.x"`, иногда `"pino-pretty"` рядом (для красивого вывода в локальной разработке).
 - Файл вроде `logger.ts` в `support/` или `setup/`, где конфигурируется уровень логирования.
 - Импорты в page object'ах: `import { logger } from '../support/logger'` и вызовы `logger.info(...)`.
 
@@ -112,7 +112,7 @@ const user = {
 
 #### Где увидишь в проекте
 
-- `package.json` → `"@faker-js/faker": "^9.x"`.
+- `package.json` → `"@faker-js/faker": "^8.x"`.
 - В фабриках (про них — следующая либа) Faker используется **внутри**.
 - Иногда — прямо в тестах для разовой генерации.
 
@@ -280,9 +280,9 @@ pre-commit:
 
 #### Где увидишь в проекте
 
-- `package.json` → `"lefthook": "^1.x"` в `devDependencies`.
+- `package.json` → `"lefthook": "^2.1.5"` в `devDependencies`.
 - Файл `lefthook.yml` в корне с описанием хуков.
-- В README инструкция вроде «после `npm install` сделайте `npx lefthook install` — это разово поставит хуки в `.git/hooks/`».
+- `package.json` → секция `"scripts"` содержит `"prepare": "lefthook install"`. `prepare` — специальный npm lifecycle-скрипт, который выполняется **автоматически** сразу после `npm install`. Так что руками ничего ставить не нужно — хуки активируются сами. (Если бы `prepare` не было, тогда действительно пришлось бы вручную звать `npx lefthook install` один раз после клонирования репозитория — это резервный вариант на случай, если `prepare` вдруг не сработал.)
 
 **Альтернативы:** раньше был популярен **Husky + lint-staged**. Lefthook появился позже, написан на Go, работает быстрее, поддерживает параллелизм из коробки, конфиг проще. Многие проекты после 2023 переезжают с Husky на Lefthook.
 
@@ -569,20 +569,20 @@ logger.info({ test: 'create-user', step: 'cleanup', id: body.id }, 'User deleted
 ```json
 {
   "dependencies": {
-    "ajv": "^8.12.0",
+    "ajv": "^8.17.1",
     "ajv-formats": "^3.0.0"
   },
   "devDependencies": {
-    "@faker-js/faker": "^9.0.0",
-    "@playwright/test": "^1.45.0",
+    "@faker-js/faker": "^8.4.1",
+    "@playwright/test": "^1.41.2",
     "fishery": "^2.2.2",
-    "lefthook": "^1.6.0",
-    "pino": "^9.1.0",
+    "lefthook": "^2.1.5",
+    "pino": "^8.19.0",
     "pino-pretty": "^11.0.0",
     "playwright-extra": "^4.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.4"
   }
 }
 ```
@@ -620,13 +620,15 @@ logger.info({ test: 'create-user', step: 'cleanup', id: body.id }, 'User deleted
 
 Lefthook — единственная из шести либ, которая **не вызывается из кода тестов**. Она работает **снаружи** — через git.
 
-После `npm install` Lefthook сам по себе ещё **не активен**. Нужно один раз сделать:
+В нашем проекте `package.json` → `"scripts"` содержит `"prepare": "lefthook install"`. `prepare` — специальный npm lifecycle-скрипт, который выполняется **сам** сразу после `npm install`. Поэтому у нас руками ничего активировать не нужно.
+
+Но это не универсально — если бы `prepare`-скрипта не было (как во многих проектах), пришлось бы один раз сделать вручную:
 
 ```bash
 npx lefthook install
 ```
 
-Это **разово** установит файлы в `.git/hooks/`. После этого Lefthook будет автоматически срабатывать при `git commit`, `git push` и других событиях.
+Это **разово** установит файлы в `.git/hooks/`. После этого Lefthook будет автоматически срабатывать при `git commit`, `git push` и других событиях. Полезно знать эту команду как fallback — если после `npm install` хуки почему-то не сработали, `npx lefthook install` их переустановит.
 
 ### Пример lefthook.yml
 
@@ -669,13 +671,13 @@ pre-push:
 
 - **Забыл `pino-pretty`** — в локальной разработке видишь сырой JSON-вывод вместо красивых строк. Поставь — увидишь читаемо. В CI он не нужен.
 - **Забыл `ajv-formats`** — AJV кричит `unknown format "email"`. Базовый AJV не знает форматов, их добавляет именно это дополнение.
-- **Забыл `npx lefthook install`** — Lefthook стоит в `package.json`, но хуки **не активны**. Делаешь commit — никаких проверок. **Самая частая** ошибка нового разработчика; в README проекта обязательно должна быть эта команда.
+- **Хуки не сработали после клонирования** — у нас это защищено `"prepare": "lefthook install"` в `package.json` (срабатывает сам на `npm install`), но если бы этого скрипта не было — классическая ошибка нового разработчика: делаешь commit, а проверок нет, потому что `npx lefthook install` никто не запустил вручную.
 
 ### Что мы видим в итоге
 
 Шесть либ — это не «шесть зависимостей в package.json». Это **семь-девять зависимостей с парными либами**: Fishery + Faker, Pino + pino-pretty, AJV + ajv-formats, playwright-extra + stealth, плюс Lefthook отдельно.
 
-Каждая ставится через `npm install`, и каждая работает «из коробки» — **кроме** Lefthook, который требует `npx lefthook install` один раз.
+Каждая ставится через `npm install` и работает «из коробки» — включая Lefthook: у нас `"prepare": "lefthook install"` активирует его автоматически в рамках того же `npm install`, без отдельной ручной команды.
 
 И каждая — **в своём месте кода**: Pino в логгере, Faker/Fishery в фабриках, AJV в валидаторах схем, stealth в фикстуре браузера, Lefthook в git-хуках.
 
@@ -953,7 +955,7 @@ test('create order', async ({ request }) => {
     'Я знаю, что **Pino + pino-pretty** — это **локальная** связка, в CI `pino-pretty` не используется.',
     'Я могу открыть `package.json` и **назвать**, что делает **каждая** из шести либ.',
     'Я понимаю, в каком слое проекта живёт **каждая** из них (логгер, фабрики, схемы, git, фикстура).',
-    'Я знаю, что после `npm install` Lefthook надо **активировать**: `npx lefthook install`.',
+    'Я знаю, что у нас Lefthook активируется **сам** после `npm install` (через `"prepare": "lefthook install"` в `package.json`), а `npx lefthook install` вручную — это fallback на случай, если `prepare` не сработал.',
   ]}
 />
 
@@ -982,7 +984,7 @@ test('create order', async ({ request }) => {
     { term: 'Git hook', definition: 'Скрипт, который автоматически запускается при определённых git-событиях: pre-commit, pre-push, post-merge.' },
     { term: 'pre-commit hook', definition: 'Хук, который запускается **перед** созданием commit\'а. Если упал — commit не создаётся.' },
     { term: 'pre-push hook', definition: 'Хук, который запускается **перед** отправкой commit\'ов на удалённый сервер. Если упал — push не выполняется.' },
-    { term: 'Lefthook', definition: 'Менеджер git-хуков. Описание хуков — в одном файле `lefthook.yml`, активация — `npx lefthook install`.' },
+    { term: 'Lefthook', definition: 'Менеджер git-хуков. Описание хуков — в `lefthook.yml`; у нас активируется сам через `"prepare"` в `package.json` (`npx lefthook install` — ручной fallback).' },
     { term: 'Husky', definition: 'Альтернатива Lefthook. Старше, но медленнее. Часто заменяется на Lefthook в новых проектах.' },
     { term: 'lint-staged', definition: 'Дополнение к Husky/Lefthook, которое запускает линтер **только** на изменённых файлах. В Lefthook эта функциональность встроена.' },
     { term: 'Anti-bot защита', definition: 'Механизмы сайтов, детектирующие автоматизированных ботов по специфическим признакам браузера.' },

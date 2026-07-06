@@ -228,6 +228,8 @@ const orders = await apiClient.getOrders();
 const user = await apiClient.updateUser(userId, { role: 'ADMIN' });
 ```
 
+🔄 **Апдейт (июль 2026):** `createGraphQLClient(env)` — это фабрика для Playwright-тестов. У Vitest-тестов (урок 3.1 — новый дефолт для API) своя фабрика, `createVitestGraphQLClient()` (без аргумента `env`), но она возвращает **тот же самый** `GraphQLClient` — с теми же методами `createCarrier`, `getOrders` и т.д. Сам фасад раннер-агностичный: он не знает и не должен знать, кто его вызвал — Playwright или Vitest.
+
 #### Боль, которую решает
 
 Без фасада каждый тест дёргает API напрямую:
@@ -308,7 +310,7 @@ test('create order', async ({ request }) => {
 
 #### Где живёт в проекте
 
-Папка `setup/` или `support/cleanup/`, файлы `seededAssetRepo.ts` (реестр) и `seededAssetReporter.ts` (reporter Playwright, который вызывает cleanup в `onEnd`).
+Папка `setup/`, файлы `seededAssetRepo.ts` (реестр) и `seededAssetReporter.ts` (reporter Playwright, который вызывает cleanup в `onEnd`). 🔄 У Vitest-тестов (API-проект) свой twin-файл — `vitestSeededAssetTeardown.ts` — та же идея, но читает журнал и удаляет сущности через Vitest-клиент, а не через Playwright. Реестр (`seededAssetRepo.ts`) один общий на оба раннера; удаляющий механизм в конце прогона — у каждого раннера свой.
 
 #### Тонкий момент
 

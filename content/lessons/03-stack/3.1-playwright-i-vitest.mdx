@@ -402,6 +402,31 @@ test('GET /api/health returns 200', async ({ request }) => {
 
 Этот пример важен, чтобы избежать заблуждения «Playwright = всегда браузер». Нет, **Playwright — это раннер с разными режимами**. Браузерный режим (через `page`) — самый известный, но не единственный.
 
+### Апдейт (июль 2026): новые API-тесты теперь пишут на Vitest, а не на Playwright
+
+Пример выше — исторический паттерн: API-тест на Playwright, файл `.spec.ts`. Он всё ещё в проекте и остаётся зелёным — это **legacy-флот**, который держат живым, но не пополняют. С 3 июля 2026 владелец стека принял решение: **новые** API-тесты по умолчанию пишутся на Vitest, во втором («api») проекте `vitest.config.ts`, в файлах `spec/api/**/*.api.test.ts`. Причина простая: Vitest не поднимает Playwright-воркер ради HTTP-запроса, а весь кастомный слой (`GraphQLClient`, `seededAssetRepo`, `withContext`, `TestFailureReport`) переиспользуется без изменений, потому что он не завязан на конкретный раннер. Вот канонический Vitest API-тест — обрати внимание на фабрику `createVitestGraphQLClient()` **без** аргумента `env` (у Playwright-варианта `createGraphQLClient(env)` он обязателен):
+
+```typescript
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import type { GraphQLClient } from '../../../support/api/graphqlClient';
+import { createVitestGraphQLClient } from '../../../support/api/vitestApi';
+
+let apiClient: GraphQLClient;
+
+describe('Carriers API @api @functional', () => {
+  beforeAll(async () => { apiClient = await createVitestGraphQLClient(); });
+  afterAll(async () => { await apiClient.dispose(); });
+
+  test('[API-F-101] create carrier @crud', async () => {
+    const response = await apiClient.createCarrier({ name: 'Test Carrier' });
+    expect(response.errors).toBeUndefined();
+    await apiClient.deleteCarrier(response.data.createCarrier.id);
+  });
+});
+```
+
+Сегодня на этом паттерне уже 14 файлов (пять — про carriers), команда запуска — `yarn test:api:vitest`. Важно: `api`-проект работает **последовательно** (`fileParallelism: false`), а не параллельно, как `unit`-проект из этого урока — все эти файлы делят один мутируемый backend. Так что «минимальный `vitest.config.ts`» из Части 4 ниже — упрощение: в реальности это не один плоский конфиг, а `projects: [unit, api]`, и команда `vitest run` без `--project` гоняет ОБА (реальный скрипт — `"test:unit": "vitest run --project unit --passWithNoTests"`, плюс отдельный `"test:api:vitest": "vitest run --project api"`).
+
 ### Главный вывод
 
 Один и тот же проект использует **оба** раннера. Не потому что хочется усложнить — потому что **это правильное решение** под классы задач.
@@ -409,8 +434,8 @@ test('GET /api/health returns 200', async ({ request }) => {
 Когда ты как QA пишешь новый тест:
 
 1. Спроси себя: «**это про чистую логику или про что-то реальное (бэкенд, браузер, БД)?**».
-2. Если **чистая логика** → Vitest, файл `something.test.ts`.
-3. Если **реальный бэкенд без UI** → Playwright API (`request`), файл `something.spec.ts`.
+2. Если **чистая логика** → Vitest, файл `something.test.ts` (`unit`-проект).
+3. Если **реальный бэкенд без UI** → по умолчанию **Vitest** (`something.api.test.ts`, `api`-проект); Playwright API (`request`, `.spec.ts`) — legacy-паттерн, держим зелёным, не образец для нового теста.
 4. Если **реальный браузер** → Playwright UI (`page`), файл `something.spec.ts`.
 
 Это **первое** инженерное решение, которое ты принимаешь до того, как написать первую строку.
