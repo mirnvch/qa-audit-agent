@@ -44,7 +44,12 @@ export function AskClaudeButton({ prompt, context, hint, label = 'Спросит
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q, context: [lesson, context].filter(Boolean).join(' · ') }),
       })
-      const data = await res.json().catch(() => null)
+      const contentType = res.headers.get('content-type') ?? ''
+      const data = contentType.includes('application/json') ? await res.json().catch(() => null) : null
+      if (res.redirected || !contentType.includes('application/json')) {
+        toast.error('Запрос ушёл на страницу входа. Войди в курс или включи DISABLE_AUTH/ALLOW_PUBLIC_ACCESS для локального режима.')
+        return
+      }
       if (!res.ok || !data?.answer) {
         toast.error(data?.error ?? 'Не получилось получить ответ, попробуй ещё раз.')
         return

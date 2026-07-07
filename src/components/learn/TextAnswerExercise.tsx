@@ -9,8 +9,14 @@
 // автору MDX дублировать его в каждом теге не надо.
 
 import { useEffect, useState } from 'react'
-import { Send, RotateCcw, BookOpen } from 'lucide-react'
-import { saveExerciseAnswer, getExerciseAnswer } from '@/lib/learn/progress'
+import { Send, RotateCcw, BookOpen, Loader2, Sparkles, RefreshCcw } from 'lucide-react'
+import {
+  saveExerciseAnswer,
+  getExerciseAnswer,
+  getExerciseFeedback,
+  saveExerciseFeedback,
+  type ExerciseFeedback,
+} from '@/lib/learn/progress'
 import { useLessonId } from './LessonProvider'
 import { cn } from '@/lib/utils'
 import { renderInlineMarkdown } from '@/lib/learn/inline-markdown'
@@ -32,30 +38,82 @@ export function TextAnswerExercise({ exerciseId, prompt, hint, placeholder, solu
   const lessonId = useLessonId()
   const [draft, setDraft] = useState('')
   const [submitted, setSubmitted] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<ExerciseFeedback | null>(null)
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const [hydrated, setHydrated] = useState(false)
 
   // На клиенте после mount — подтягиваем сохранённый ответ.
   useEffect(() => {
     const saved = getExerciseAnswer(lessonId, exerciseId)
     if (saved) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration из localStorage; альтернатива через useSyncExternalStore не оправдывает оверхеда.
       setSubmitted(saved)
       setDraft(saved)
+      const savedFeedback = getExerciseFeedback(lessonId, exerciseId)
+      if (savedFeedback) {
+        setFeedback(savedFeedback)
+      }
     }
     setHydrated(true)
   }, [lessonId, exerciseId])
+
+  async function requestFeedback(answer: string) {
+    setFeedbackLoading(true)
+    setFeedbackError(null)
+    try {
+      const lessonPath = typeof window !== 'undefined' ? window.location.pathname : ''
+      const res = await fetch('/api/learn/analyze-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lessonId,
+          exerciseId,
+          prompt,
+          answer,
+          context: lessonPath,
+        }),
+      })
+      const contentType = res.headers.get('content-type') ?? ''
+      const data = contentType.includes('application/json') ? await res.json().catch(() => null) : null
+
+      if (res.redirected || !contentType.includes('application/json')) {
+        setFeedbackError(
+          'AI-запрос ушёл на страницу входа. Войди в курс или включи DISABLE_AUTH/ALLOW_PUBLIC_ACCESS для локального режима.',
+        )
+        return
+      }
+
+      if (!res.ok || !data?.feedback) {
+        setFeedbackError(data?.error ?? 'AI-разбор сейчас недоступен, попробуй ещё раз.')
+        return
+      }
+
+      setFeedback(data.feedback)
+      saveExerciseFeedback(lessonId, exerciseId, data.feedback)
+    } catch {
+      setFeedbackError('Сеть недоступна — AI-разбор не получился. Попробуй ещё раз.')
+    } finally {
+      setFeedbackLoading(false)
+    }
+  }
 
   function handleSubmit() {
     const text = draft.trim()
     if (!text) return
     saveExerciseAnswer(lessonId, exerciseId, text)
     setSubmitted(text)
+    setFeedback(null)
+    saveExerciseFeedback(lessonId, exerciseId, null)
+    void requestFeedback(text)
   }
 
   function handleReset() {
     setSubmitted(null)
     setDraft('')
+    setFeedback(null)
+    setFeedbackError(null)
     saveExerciseAnswer(lessonId, exerciseId, '')
+    saveExerciseFeedback(lessonId, exerciseId, null)
   }
 
   return (
@@ -116,10 +174,19 @@ export function TextAnswerExercise({ exerciseId, prompt, hint, placeholder, solu
             <p className="text-sm leading-relaxed whitespace-pre-wrap">{submitted}</p>
           </div>
 
+          <AiFeedbackPanel
+            feedback={feedback}
+            loading={feedbackLoading}
+            error={feedbackError}
+            onRetry={() => {
+              if (submitted) void requestFeedback(submitted)
+            }}
+          />
+
           <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3">
             <div className="mb-2 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-emerald-400/80">
               <BookOpen className="h-3 w-3" />
-              Разбор
+              Эталонный разбор
             </div>
             <div className="text-sm leading-relaxed [&>p]:my-1.5 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0">
               {solution}
@@ -144,4 +211,126 @@ export function TextAnswerExercise({ exerciseId, prompt, hint, placeholder, solu
       )}
     </div>
   )
+}
+
+function AiFeedbackPanel({
+  feedback,
+  loading,
+  error,
+  onRetry,
+}: {
+  feedback: ExerciseFeedback | null
+  loading: boolean
+  error: string | null
+  onRetry: () => void
+}) {
+  const score = getScoreMeta(feedback?.scoreLabel)
+
+  return (
+    <div className="rounded-md border border-primary/25 bg-primary/[0.03] p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-primary/80">
+          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+          AI-разбор ответа
+        </div>
+        {feedback && (
+          <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-mono', score.className)}>
+            {score.label}
+          </span>
+        )}
+      </div>
+
+      {loading && (
+        <p className="text-sm text-muted-foreground">
+          Проверяю ответ: ищу сильные места, пробелы и конкретные ошибки.
+        </p>
+      )}
+
+      {!loading && error && (
+        <div className="space-y-2">
+          <p className="text-sm text-destructive">{error}</p>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border/50 px-2 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <RefreshCcw className="h-3 w-3" />
+            Повторить AI-разбор
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && feedback && (
+        <div className="space-y-3 text-sm leading-relaxed">
+          <p>{feedback.summary}</p>
+          <FeedbackList title="Что хорошо" items={feedback.strengths} />
+          <FeedbackList title="Что упущено" items={feedback.gaps} />
+          <FeedbackList title="Ошибки и уточнения" items={feedback.corrections} />
+          <FeedbackList title="Что дописать" items={feedback.nextSteps} />
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <RefreshCcw className="h-3 w-3" />
+            Обновить разбор
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && !feedback && (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            AI-разбор ещё не сохранён для этого ответа.
+          </p>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border/50 px-2 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <RefreshCcw className="h-3 w-3" />
+            Запустить AI-разбор
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FeedbackList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null
+
+  return (
+    <div>
+      <h4 className="mb-1 text-xs font-mono uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h4>
+      <ul className="space-y-1 pl-4">
+        {items.map((item, index) => (
+          <li key={`${title}-${index}`} className="list-disc">
+            {renderInlineMarkdown(item)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function getScoreMeta(scoreLabel?: ExerciseFeedback['scoreLabel']) {
+  if (scoreLabel === 'strong') {
+    return {
+      label: 'сильный ответ',
+      className: 'bg-emerald-500/10 text-emerald-500',
+    }
+  }
+  if (scoreLabel === 'needs_work') {
+    return {
+      label: 'нужно доработать',
+      className: 'bg-amber-500/10 text-amber-500',
+    }
+  }
+  return {
+    label: 'в целом ок',
+    className: 'bg-primary/10 text-primary',
+  }
 }

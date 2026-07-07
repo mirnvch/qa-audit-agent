@@ -8,6 +8,7 @@ const NS = 'nexus-course'
 
 const K_COMPLETED = `${NS}:completed-lessons`            // string[] — id уроков
 const K_ANSWERS   = `${NS}:exercise-answers`             // { [`${lessonId}/${exerciseId}`]: string }
+const K_FEEDBACK  = `${NS}:exercise-feedback`            // { [`${lessonId}/${exerciseId}`]: ExerciseFeedback }
 const K_CHECK     = `${NS}:checklist`                    // { [`${lessonId}/${checklistId}`]: boolean[] }
 
 function isClient() {
@@ -63,6 +64,17 @@ export function getCompletedCount(): number {
 
 type AnswersMap = Record<string, string>
 
+export type ExerciseFeedback = {
+  summary: string
+  scoreLabel: 'strong' | 'ok' | 'needs_work'
+  strengths: string[]
+  gaps: string[]
+  corrections: string[]
+  nextSteps: string[]
+}
+
+type FeedbackMap = Record<string, ExerciseFeedback>
+
 export function getExerciseAnswer(lessonId: string, exerciseId: string): string | null {
   const all = readJson<AnswersMap>(K_ANSWERS, {})
   return all[`${lessonId}/${exerciseId}`] ?? null
@@ -72,6 +84,26 @@ export function saveExerciseAnswer(lessonId: string, exerciseId: string, answer:
   const all = readJson<AnswersMap>(K_ANSWERS, {})
   all[`${lessonId}/${exerciseId}`] = answer
   writeJson(K_ANSWERS, all)
+}
+
+export function getExerciseFeedback(lessonId: string, exerciseId: string): ExerciseFeedback | null {
+  const all = readJson<FeedbackMap>(K_FEEDBACK, {})
+  return all[`${lessonId}/${exerciseId}`] ?? null
+}
+
+export function saveExerciseFeedback(
+  lessonId: string,
+  exerciseId: string,
+  feedback: ExerciseFeedback | null,
+) {
+  const all = readJson<FeedbackMap>(K_FEEDBACK, {})
+  const key = `${lessonId}/${exerciseId}`
+  if (feedback) {
+    all[key] = feedback
+  } else {
+    delete all[key]
+  }
+  writeJson(K_FEEDBACK, all)
 }
 
 // ─── Чек-листы ────────────────────────────────────────────
