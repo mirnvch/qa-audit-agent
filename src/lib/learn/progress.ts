@@ -75,6 +75,33 @@ export type ExerciseFeedback = {
 
 type FeedbackMap = Record<string, ExerciseFeedback>
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+function isExerciseFeedback(value: unknown): value is ExerciseFeedback {
+  if (!value || typeof value !== 'object') return false
+
+  const feedback = value as Partial<ExerciseFeedback>
+  return (
+    typeof feedback.summary === 'string' &&
+    (feedback.scoreLabel === 'strong' || feedback.scoreLabel === 'ok' || feedback.scoreLabel === 'needs_work') &&
+    isStringArray(feedback.strengths) &&
+    isStringArray(feedback.gaps) &&
+    isStringArray(feedback.corrections) &&
+    isStringArray(feedback.nextSteps)
+  )
+}
+
+function hasLeakedRawJson(feedback: ExerciseFeedback) {
+  const summary = feedback.summary.trim()
+  return (
+    summary.startsWith('{') ||
+    summary.startsWith('```') ||
+    (summary.includes('"summary"') && summary.includes('"scoreLabel"'))
+  )
+}
+
 export function getExerciseAnswer(lessonId: string, exerciseId: string): string | null {
   const all = readJson<AnswersMap>(K_ANSWERS, {})
   return all[`${lessonId}/${exerciseId}`] ?? null
@@ -88,7 +115,9 @@ export function saveExerciseAnswer(lessonId: string, exerciseId: string, answer:
 
 export function getExerciseFeedback(lessonId: string, exerciseId: string): ExerciseFeedback | null {
   const all = readJson<FeedbackMap>(K_FEEDBACK, {})
-  return all[`${lessonId}/${exerciseId}`] ?? null
+  const feedback = all[`${lessonId}/${exerciseId}`]
+  if (!isExerciseFeedback(feedback) || hasLeakedRawJson(feedback)) return null
+  return feedback
 }
 
 export function saveExerciseFeedback(

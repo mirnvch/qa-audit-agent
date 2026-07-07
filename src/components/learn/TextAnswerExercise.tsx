@@ -8,7 +8,7 @@
 // lessonId берётся из LessonProvider через хук useLessonId() —
 // автору MDX дублировать его в каждом теге не надо.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Send, RotateCcw, BookOpen, Loader2, Sparkles, RefreshCcw } from 'lucide-react'
 import {
   saveExerciseAnswer,
@@ -36,6 +36,7 @@ type Props = {
 
 export function TextAnswerExercise({ exerciseId, prompt, hint, placeholder, solution }: Props) {
   const lessonId = useLessonId()
+  const solutionRef = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState('')
   const [submitted, setSubmitted] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<ExerciseFeedback | null>(null)
@@ -57,11 +58,22 @@ export function TextAnswerExercise({ exerciseId, prompt, hint, placeholder, solu
     setHydrated(true)
   }, [lessonId, exerciseId])
 
+  async function getAnswerKeyText() {
+    if (typeof window === 'undefined') return ''
+
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve())
+    })
+
+    return solutionRef.current?.innerText.replace(/\s+/g, ' ').trim() ?? ''
+  }
+
   async function requestFeedback(answer: string) {
     setFeedbackLoading(true)
     setFeedbackError(null)
     try {
       const lessonPath = typeof window !== 'undefined' ? window.location.pathname : ''
+      const answerKey = await getAnswerKeyText()
       const res = await fetch('/api/learn/analyze-answer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,6 +82,7 @@ export function TextAnswerExercise({ exerciseId, prompt, hint, placeholder, solu
           exerciseId,
           prompt,
           answer,
+          answerKey,
           context: lessonPath,
         }),
       })
@@ -188,7 +201,10 @@ export function TextAnswerExercise({ exerciseId, prompt, hint, placeholder, solu
               <BookOpen className="h-3 w-3" />
               Эталонный разбор
             </div>
-            <div className="text-sm leading-relaxed [&>p]:my-1.5 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0">
+            <div
+              ref={solutionRef}
+              className="text-sm leading-relaxed [&>p]:my-1.5 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0"
+            >
               {solution}
             </div>
           </div>
@@ -263,9 +279,9 @@ function AiFeedbackPanel({
       {!loading && !error && feedback && (
         <div className="space-y-3 text-sm leading-relaxed">
           <p>{feedback.summary}</p>
-          <FeedbackList title="Что хорошо" items={feedback.strengths} />
-          <FeedbackList title="Что упущено" items={feedback.gaps} />
-          <FeedbackList title="Ошибки и уточнения" items={feedback.corrections} />
+          <FeedbackList title="Что засчитано" items={feedback.strengths} />
+          <FeedbackList title="Чего не хватает" items={feedback.gaps} />
+          <FeedbackList title="Как поправить формулировки" items={feedback.corrections} />
           <FeedbackList title="Что дописать" items={feedback.nextSteps} />
           <button
             type="button"
@@ -319,18 +335,18 @@ function FeedbackList({ title, items }: { title: string; items: string[] }) {
 function getScoreMeta(scoreLabel?: ExerciseFeedback['scoreLabel']) {
   if (scoreLabel === 'strong') {
     return {
-      label: 'сильный ответ',
+      label: 'уверенный зачёт',
       className: 'bg-emerald-500/10 text-emerald-500',
     }
   }
   if (scoreLabel === 'needs_work') {
     return {
-      label: 'нужно доработать',
+      label: 'нужно дописать',
       className: 'bg-amber-500/10 text-amber-500',
     }
   }
   return {
-    label: 'в целом ок',
+    label: 'частичный зачёт',
     className: 'bg-primary/10 text-primary',
   }
 }
