@@ -1,12 +1,11 @@
-// Главная страница раздела /learn — обложка курса + список модулей.
+// Обложка курса «Виды тестирования» — отдельный вход, /learn/testing-types.
+// Статический сегмент имеет приоритет над динамическим [moduleId], поэтому
+// не конфликтует с маршрутами модулей.
 
 import Link from 'next/link'
-import { ChevronRight, Clock, BookOpen, GraduationCap } from 'lucide-react'
+import { ChevronRight, Clock, BookOpen, ArrowLeft } from 'lucide-react'
 import {
-  COURSE_MODULES,
   COURSES,
-  TOTAL_LESSONS,
-  TOTAL_HOURS_ROUNDED,
   courseLessonCount,
   moduleHref,
   type Course,
@@ -17,43 +16,51 @@ import { ProgressBar } from '@/components/learn/ProgressBar'
 import { ModuleProgressBadge } from '@/components/learn/ModuleProgressBadge'
 import { CourseSidebarMobileTrigger } from '@/components/learn/CourseSidebarMobileTrigger'
 
-export default function LearnHomePage() {
+const COURSE: Course =
+  COURSES.find(c => c.id === 'testing-types') ?? COURSES[0]
+
+export default function TestingTypesHomePage() {
+  const lessonCount = courseLessonCount(COURSE)
+  const lessonIds = COURSE.modules.flatMap(m => m.lessons.map(l => l.id))
+
   return (
     <div className="p-6 lg:p-8 space-y-10 max-w-5xl">
       {/* Обложка */}
       <header className="space-y-4">
         <div className="flex items-center gap-2">
           <CourseSidebarMobileTrigger />
-          <p className="text-[10px] font-mono text-muted-foreground/60 tracking-[0.2em] uppercase">
-            Section · Обучение
-          </p>
+          <Link
+            href="/learn"
+            className="inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60 tracking-[0.2em] uppercase hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            Другие курсы
+          </Link>
         </div>
         <h1 className="text-4xl font-bold tracking-tight leading-tight">
-          Архитектура QA-проекта Nexus
+          {COURSE.title}
         </h1>
         <p className="text-base text-muted-foreground leading-relaxed max-w-2xl">
-          Подробный курс по тому, как устроен production-grade Playwright-фреймворк:
-          слои, фикстуры, page-objects, фабрики данных, обработка ошибок, CI/CD и техдолг.
-          Подходит QA-инженерам, которые хотят понять, как из набора тестов вырастает архитектура.
+          {COURSE.description}
         </p>
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs font-mono text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <BookOpen className="h-3.5 w-3.5" />
-            {TOTAL_LESSONS} уроков
+            {lessonCount} {pluralLessons(lessonCount)}
           </span>
           <span>·</span>
-          <span>{COURSE_MODULES.length} модулей</span>
+          <span>{COURSE.modules.length} {pluralModules(COURSE.modules.length)}</span>
           <span>·</span>
           <span className="inline-flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5" />
-            ~{TOTAL_HOURS_ROUNDED} часов чистого времени
+            простым языком, с примерами из жизни
           </span>
         </div>
       </header>
 
-      {/* Прогресс-бар сверху */}
+      {/* Прогресс-бар — только по этому курсу */}
       <div className="rounded-lg border border-border/50 bg-card/40 p-5">
-        <ProgressBar height={6} />
+        <ProgressBar scopeIds={lessonIds} height={6} />
       </div>
 
       {/* Модули */}
@@ -69,66 +76,12 @@ export default function LearnHomePage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {COURSE_MODULES.map(mod => (
+          {COURSE.modules.map(mod => (
             <ModuleCard key={mod.id} mod={mod} />
           ))}
         </div>
       </section>
-
-      {/* Другие курсы — отдельные входы */}
-      <OtherCoursesSection />
     </div>
-  )
-}
-
-function OtherCoursesSection() {
-  const others = COURSES.filter(c => c.landingHref !== '/learn')
-  if (others.length === 0) return null
-
-  return (
-    <section>
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-        <div className="flex-1 h-px bg-border" />
-        <span className="text-[10px] font-mono tracking-[0.2em] text-muted-foreground/40">
-          ДРУГИЕ КУРСЫ
-        </span>
-        <div className="flex-1 h-px bg-border" />
-        <div className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4">
-        {others.map(course => (
-          <OtherCourseCard key={course.id} course={course} />
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function OtherCourseCard({ course }: { course: Course }) {
-  const lessonCount = courseLessonCount(course)
-  return (
-    <Link
-      href={course.landingHref}
-      className="group rounded-lg border border-border/50 bg-card/30 p-5 hover:border-border hover:bg-card/50 transition-colors"
-    >
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
-            <GraduationCap className="h-4 w-4" />
-          </div>
-          <h2 className="text-base font-semibold leading-tight">{course.title}</h2>
-        </div>
-        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40 group-hover:translate-x-0.5 group-hover:text-foreground transition-all" />
-      </div>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-        {course.description}
-      </p>
-      <span className="text-xs font-mono text-muted-foreground/60">
-        {lessonCount} {pluralLessons(lessonCount)}
-      </span>
-    </Link>
   )
 }
 
@@ -175,4 +128,10 @@ function pluralLessons(n: number): string {
   if (n === 1) return 'урок'
   if (n >= 2 && n <= 4) return 'урока'
   return 'уроков'
+}
+
+function pluralModules(n: number): string {
+  if (n === 1) return 'модуль'
+  if (n >= 2 && n <= 4) return 'модуля'
+  return 'модулей'
 }

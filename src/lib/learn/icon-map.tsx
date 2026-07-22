@@ -19,6 +19,8 @@ import {
   Activity,
   GitBranch,
   Wrench,
+  FileCheck2,
+  Grid3x3,
 } from 'lucide-react'
 
 type Props = {
@@ -40,6 +42,8 @@ export function ModuleIcon({ name, className }: Props) {
     case 'Activity':   return <Activity   className={className} />
     case 'GitBranch':  return <GitBranch  className={className} />
     case 'Wrench':     return <Wrench     className={className} />
+    case 'FileCheck2': return <FileCheck2 className={className} />
+    case 'Grid3x3':    return <Grid3x3    className={className} />
     default:           return <Layers     className={className} />
   }
 }

@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronRight, Clock, Lock } from 'lucide-react'
 import {
-  COURSE_MODULES,
+  ALL_MODULES,
+  courseForModule,
   findModule,
   lessonHref,
   type Lesson,
@@ -20,9 +21,9 @@ type Props = {
   params: Promise<{ moduleId: string }>
 }
 
-// Префетч всех модулей на этапе сборки — они известны статически.
+// Префетч всех модулей (всех курсов) на этапе сборки — они известны статически.
 export function generateStaticParams() {
-  return COURSE_MODULES.map(m => ({ moduleId: m.id }))
+  return ALL_MODULES.map(m => ({ moduleId: m.id }))
 }
 
 export default async function ModulePage({ params }: Props) {
@@ -73,10 +74,11 @@ export default async function ModulePage({ params }: Props) {
 }
 
 function Breadcrumbs({ mod }: { mod: Module }) {
+  const courseHref = courseForModule(mod.id)?.landingHref ?? '/learn'
   return (
     <nav className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
       <CourseSidebarMobileTrigger className="mr-1" />
-      <Link href="/learn" className="hover:text-foreground transition-colors">Курс</Link>
+      <Link href={courseHref} className="hover:text-foreground transition-colors">Курс</Link>
       <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
       <span className="text-foreground">Модуль {mod.number}</span>
     </nav>

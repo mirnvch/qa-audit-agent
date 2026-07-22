@@ -24,6 +24,18 @@ export type Module = {
   lessons: Lesson[]
 }
 
+// Курс = набор модулей со своей обложкой (landing). Приложение поддерживает
+// несколько курсов, каждый со своим входом. moduleId уникальны ГЛОБАЛЬНО
+// (между курсами), поэтому маршруты /learn/<moduleId>/<slug> общие для всех
+// курсов — разделяет их только лендинг и курс-зависимый сайдбар.
+export type Course = {
+  id: string                  // "architecture" | "testing-types"
+  title: string
+  description: string
+  landingHref: string         // "/learn" (архитектура) | "/learn/testing-types"
+  modules: Module[]
+}
+
 function lesson(
   moduleId: string,
   id: string,
@@ -275,15 +287,87 @@ export const COURSE_MODULES: Module[] = [
   },
 ]
 
+// ─── Курс «Виды тестирования» (отдельный вход) ─────────────
+// Отдельный курс со своей обложкой /learn/testing-types. moduleId уникальны
+// между курсами, поэтому уроки рендерятся через общие маршруты
+// /learn/<moduleId>/<slug>. ВАЖНО: прогресс хранит lesson.id ГЛОБАЛЬНО, поэтому
+// id здесь с префиксом "T", чтобы не пересечься с архитектурными "1.1".."12.2".
+export const TESTING_MODULES: Module[] = [
+  {
+    id: 'contract-testing',
+    number: 1,
+    title: 'Контрактное тестирование',
+    description: 'Проверяем, что сервер отдаёт данные в согласованном виде — сначала правильную форму ответа, потом правильные значения внутри. Простым языком, на реальном коде.',
+    icon: 'FileCheck2',
+    lessons: [
+      lesson(
+        'contract-testing', 'T1.1', 'kontrakt-forma', 'Контракт формы ответа', 30, 'published',
+        {
+          mainIdea:
+            'Контрактное тестирование проверяет не значения, а форму ответа: те же поля, те же типы, ту же структуру, о которой договорились с сервером. Это как проверять не качество груза, а правильно ли оформлена накладная. Самая дешёвая страховка от класса поломок, когда сервер молча меняет форму ответа и ломает всех, кто её читает.',
+        },
+      ),
+      lesson(
+        'contract-testing', 'T1.2', 'kontrakt-kachestvo-dannyh', 'Контракт качества данных', 30, 'published',
+        {
+          mainIdea:
+            'Правильная форма — это только полдела. Контракт качества данных идёт дальше и проверяет, что внутри верной формы лежат правильные значения: статус именно ACTIVE, баланс именно 0 после оплаты. Слабая проверка «есть хоть что-то» пропускает баги (и даже валит правильный ноль); строгая проверка «ровно это значение» их ловит.',
+        },
+      ),
+    ],
+  },
+  {
+    id: 'combinatorial-testing',
+    number: 2,
+    title: 'Комбинаторное тестирование',
+    description: 'Когда параметров и значений много, все комбинации не перебрать. Pairwise (попарное) покрывает все пары значений минимальным набором тестов — и ловит большинство багов малой кровью.',
+    icon: 'Grid3x3',
+    lessons: [
+      lesson(
+        'combinatorial-testing', 'T2.1', 'pairwise', 'Pairwise: покрываем пары, не все комбинации', 30, 'published',
+        {
+          mainIdea:
+            'Когда у фичи много параметров с разными значениями, все комбинации не перебрать — их слишком много (комбинаторный взрыв). Pairwise покрывает все ПАРЫ значений минимальным набором тестов. Работает потому, что большинство багов вызвано одним значением или парой, а не редкой тройкой.',
+        },
+      ),
+    ],
+  },
+]
+
+// ─── Реестр курсов ─────────────────────────────────────────
+
+export const COURSES: Course[] = [
+  {
+    id: 'architecture',
+    title: 'Архитектура QA-проекта Nexus',
+    description: 'Как устроен production-grade Playwright-фреймворк: слои, фикстуры, page-objects, фабрики данных, обработка ошибок, CI/CD и техдолг.',
+    landingHref: '/learn',
+    modules: COURSE_MODULES,
+  },
+  {
+    id: 'testing-types',
+    title: 'Виды тестирования простыми словами',
+    description: 'Что за подходы к тестированию бывают, зачем они нужны и как выглядят на реальном коде. Без жаргона, с примерами из жизни.',
+    landingHref: '/learn/testing-types',
+    modules: TESTING_MODULES,
+  },
+]
+
+/** Все модули всех курсов — для резолва общих маршрутов /learn/<moduleId>. */
+export const ALL_MODULES: Module[] = COURSES.flatMap(c => c.modules)
+
 // ─── Утилиты ───────────────────────────────────────────────
 
+// Прогресс/счётчики архитектурного курса считаем от COURSE_MODULES, чтобы
+// обложка /learn осталась ровно такой же. Для второго курса счётчики берём
+// через courseLessonCount(course).
 export const ALL_LESSONS: Lesson[] = COURSE_MODULES.flatMap(m => m.lessons)
 export const TOTAL_LESSONS = ALL_LESSONS.length        // 35
 export const TOTAL_MINUTES = ALL_LESSONS.reduce((sum, l) => sum + l.estimatedMinutes, 0)
 export const TOTAL_HOURS_ROUNDED = Math.round(TOTAL_MINUTES / 60)
 
 export function findModule(moduleId: string): Module | undefined {
-  return COURSE_MODULES.find(m => m.id === moduleId)
+  return ALL_MODULES.find(m => m.id === moduleId)
 }
 
 export function findLesson(moduleId: string, slug: string): { module: Module; lesson: Lesson } | undefined {
@@ -294,13 +378,45 @@ export function findLesson(moduleId: string, slug: string): { module: Module; le
   return { module: mod, lesson }
 }
 
-/** Линейный список (modIdx, lessonIdx) для prev/next-навигации. */
+/** Курс, которому принадлежит модуль (по moduleId). */
+export function courseForModule(moduleId: string | undefined): Course | undefined {
+  if (!moduleId) return undefined
+  return COURSES.find(c => c.modules.some(m => m.id === moduleId))
+}
+
+/**
+ * Курс, активный для данного pathname. Сначала пробуем явную обложку курса
+ * (landingHref, кроме "/learn"), затем модуль в URL. Дефолт — первый курс
+ * (архитектура), он же покрывает голый "/learn".
+ */
+export function courseForPath(pathname: string): Course {
+  const byLanding = COURSES.find(
+    c => c.landingHref !== '/learn' && (pathname === c.landingHref || pathname.startsWith(c.landingHref + '/')),
+  )
+  if (byLanding) return byLanding
+
+  const match = pathname.match(/^\/learn\/([^/]+)/)
+  if (match) {
+    const byModule = courseForModule(match[1])
+    if (byModule) return byModule
+  }
+  return COURSES[0]
+}
+
+/** Число уроков в курсе — для счётчиков сайдбара/обложки конкретного курса. */
+export function courseLessonCount(course: Course): number {
+  return course.modules.reduce((sum, m) => sum + m.lessons.length, 0)
+}
+
+/** Линейный список уроков для prev/next-навигации — в пределах ОДНОГО курса. */
 export function getLessonNeighbours(moduleId: string, slug: string): { prev?: Lesson; next?: Lesson } {
-  const idx = ALL_LESSONS.findIndex(l => l.moduleId === moduleId && l.slug === slug)
+  const course = courseForModule(moduleId)
+  const lessons = course ? course.modules.flatMap(m => m.lessons) : ALL_LESSONS
+  const idx = lessons.findIndex(l => l.moduleId === moduleId && l.slug === slug)
   if (idx === -1) return {}
   return {
-    prev: idx > 0 ? ALL_LESSONS[idx - 1] : undefined,
-    next: idx < ALL_LESSONS.length - 1 ? ALL_LESSONS[idx + 1] : undefined,
+    prev: idx > 0 ? lessons[idx - 1] : undefined,
+    next: idx < lessons.length - 1 ? lessons[idx + 1] : undefined,
   }
 }
 

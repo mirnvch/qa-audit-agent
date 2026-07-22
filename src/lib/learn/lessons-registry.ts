@@ -53,6 +53,16 @@ export const lessonsRegistry: Record<string, LessonImporter> = {
     () => import('@content/lessons/06-setup-auth/6.1-global-setup.mdx'),
   '06-setup-auth/6.2-seeded-asset-repo':
     () => import('@content/lessons/06-setup-auth/6.2-seeded-asset-repo.mdx'),
+
+  // ─── Курс «Виды тестирования» → модуль «Контрактное тестирование» ───
+  'contract-testing/T1.1-kontrakt-forma':
+    () => import('@content/lessons/contract-testing/T1.1-kontrakt-forma.mdx'),
+  'contract-testing/T1.2-kontrakt-kachestvo-dannyh':
+    () => import('@content/lessons/contract-testing/T1.2-kontrakt-kachestvo-dannyh.mdx'),
+
+  // ─── Курс «Виды тестирования» → модуль «Комбинаторное тестирование» ───
+  'combinatorial-testing/T2.1-pairwise':
+    () => import('@content/lessons/combinatorial-testing/T2.1-pairwise.mdx'),
 }
 
 /** Получить importer урока по mdxPath из course-config (с .mdx или без — нормализуется). */

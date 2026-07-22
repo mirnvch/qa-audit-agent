@@ -10,7 +10,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
 import {
-  COURSE_MODULES,
+  ALL_MODULES,
+  courseForModule,
   findLesson,
   getLessonNeighbours,
 } from '@/lib/learn/course-config'
@@ -25,9 +26,9 @@ type Props = {
   params: Promise<{ moduleId: string; lessonId: string }>
 }
 
-// Префетчим все известные пары на этапе сборки.
+// Префетчим все известные пары (все курсы) на этапе сборки.
 export function generateStaticParams() {
-  return COURSE_MODULES.flatMap(m =>
+  return ALL_MODULES.flatMap(m =>
     m.lessons.map(l => ({ moduleId: m.id, lessonId: l.slug })),
   )
 }
@@ -39,6 +40,7 @@ export default async function LessonPage({ params }: Props) {
 
   const { module: mod, lesson } = found
   const neighbours = getLessonNeighbours(moduleId, lessonId)
+  const courseHref = courseForModule(mod.id)?.landingHref ?? '/learn'
 
   // Импорт MDX через явный реестр — см. lessons-registry.ts.
   const importer = getLessonImporter(lesson.mdxPath)
@@ -49,7 +51,7 @@ export default async function LessonPage({ params }: Props) {
       {/* Хлебные крошки + mobile-меню */}
       <nav className="flex flex-wrap items-center gap-1.5 text-xs font-mono text-muted-foreground">
         <CourseSidebarMobileTrigger className="mr-1" />
-        <Link href="/learn" className="hover:text-foreground transition-colors">Курс</Link>
+        <Link href={courseHref} className="hover:text-foreground transition-colors">Курс</Link>
         <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
         <Link href={`/learn/${mod.id}`} className="hover:text-foreground transition-colors">
           Модуль {mod.number}
